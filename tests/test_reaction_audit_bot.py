@@ -17,7 +17,8 @@ def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monke
 
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE reaction_skill_audits (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               discord_message_id TEXT NOT NULL,
@@ -42,7 +43,8 @@ def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monke
               raw_report_json TEXT NOT NULL,
               created_at REAL NOT NULL
             );
-            """)
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -69,7 +71,8 @@ def test_get_message_ids_for_turn_returns_sorted_ids(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(turn_map_db)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               turn_id TEXT,
@@ -80,7 +83,8 @@ def test_get_message_ids_for_turn_returns_sorted_ids(tmp_path, monkeypatch):
               ('1003', 'session-1:42', 3),
               ('1001', 'session-1:42', 1),
               ('1002', 'session-1:42', 2);
-            """)
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -98,7 +102,8 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
 
     conn = sqlite3.connect(turn_map_db)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               session_key TEXT,
@@ -123,14 +128,16 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
               discord_message_id, session_id, turn_id, assistant_db_id, status,
               resolution_source, sent_at, created_at, updated_at
             ) VALUES ('1001', 'session-1', 'session-1:44', 44, 'resolved', 'send_exact', 1000.0, 1000.0, 1000.0);
-            """)
+            """
+        )
         conn.commit()
     finally:
         conn.close()
 
     conn = sqlite3.connect(state_db)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE messages (
               id INTEGER PRIMARY KEY,
               session_id TEXT NOT NULL,
@@ -142,7 +149,8 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
               finish_reason TEXT,
               timestamp REAL NOT NULL
             );
-            """)
+            """
+        )
         conn.execute(
             "INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, tool_name, finish_reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (

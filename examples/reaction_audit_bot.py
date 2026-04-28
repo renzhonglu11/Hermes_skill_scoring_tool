@@ -99,7 +99,8 @@ def ensure_skill_audit_db() -> None:
     ensure_dirs()
     conn = sqlite3.connect(SKILL_AUDIT_DB_PATH)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS reaction_skill_audits (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               discord_message_id TEXT NOT NULL,
@@ -134,7 +135,8 @@ def ensure_skill_audit_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_rsa_created_at
             ON reaction_skill_audits(created_at);
-            """)
+            """
+        )
         cols = {
             row[1]
             for row in conn.execute(

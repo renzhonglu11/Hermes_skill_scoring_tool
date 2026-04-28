@@ -8,7 +8,8 @@ import inspect_map
 def _create_mapping_db(db_path):
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               session_key TEXT,
@@ -29,7 +30,8 @@ def _create_mapping_db(db_path):
               created_at REAL NOT NULL,
               updated_at REAL NOT NULL
             );
-            """)
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -38,7 +40,8 @@ def _create_mapping_db(db_path):
 def _create_state_db(db_path):
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE messages (
               id INTEGER PRIMARY KEY,
               session_id TEXT NOT NULL,
@@ -46,7 +49,8 @@ def _create_state_db(db_path):
               content TEXT,
               timestamp REAL NOT NULL
             );
-            """)
+            """
+        )
         conn.commit()
     finally:
         conn.close()

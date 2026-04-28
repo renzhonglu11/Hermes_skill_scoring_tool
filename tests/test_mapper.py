@@ -44,7 +44,8 @@ def test_ensure_db_migrates_legacy_schema_to_pending_and_resolved_rows(
     data_dir.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               session_key TEXT,
@@ -60,7 +61,8 @@ def test_ensure_db_migrates_legacy_schema_to_pending_and_resolved_rows(
               created_at REAL NOT NULL,
               updated_at REAL NOT NULL
             );
-            """)
+            """
+        )
         conn.execute(
             """
             INSERT INTO discord_message_turn_map (
