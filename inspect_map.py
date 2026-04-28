@@ -13,17 +13,23 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 ENV_FILE = os.getenv("ENV_FILE", ".env")
 load_dotenv(PROJECT_ROOT / ENV_FILE)
 
+
 def _resolve_env_path(env_val: str, default_rel: str) -> Path:
     p = Path(os.getenv(env_val, default_rel)).expanduser()
     if not p.is_absolute():
         p = PROJECT_ROOT / p
     return p.resolve()
 
+
 DB_PATH = _resolve_env_path("DISCORD_TURN_MAP_DB_PATH", "data/discord_turn_map.db")
-STATE_DB = Path(os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))).expanduser()
+STATE_DB = Path(
+    os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))
+).expanduser()
 
 
-def _find_assistant_after_sent(session_id: str, sent_at: float, window_seconds: int) -> int | None:
+def _find_assistant_after_sent(
+    session_id: str, sent_at: float, window_seconds: int
+) -> int | None:
     if not STATE_DB.exists() or not session_id:
         return None
 
@@ -75,7 +81,9 @@ def reconcile_pending(window_seconds: int = 180, lookback_seconds: int = 3600) -
         now = time.time()
         for row in rows:
             session_id = str(row["session_id"] or "")
-            assistant_db_id = _find_assistant_after_sent(session_id, float(row["sent_at"]), window_seconds)
+            assistant_db_id = _find_assistant_after_sent(
+                session_id, float(row["sent_at"]), window_seconds
+            )
             if not assistant_db_id:
                 continue
 
@@ -107,7 +115,12 @@ def fetch_recent(limit: int, status: str | None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(discord_message_turn_map)").fetchall()}
+        cols = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(discord_message_turn_map)"
+            ).fetchall()
+        }
         has_status = "status" in cols
         has_resolution_source = "resolution_source" in cols
         has_sent_at = "sent_at" in cols
@@ -135,7 +148,7 @@ def fetch_recent(limit: int, status: str | None):
             + (" WHERE status = ?" if status and has_status else "")
             + " ORDER BY created_at DESC LIMIT ?"
         )
-        params = ((status, limit) if status and has_status else (limit,))
+        params = (status, limit) if status and has_status else (limit,)
         return conn.execute(query, params).fetchall()
     finally:
         conn.close()
@@ -158,7 +171,11 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--message-id")
     parser.add_argument("--status", choices=["pending", "resolved"])
-    parser.add_argument("--reconcile", action="store_true", help="尝试按 sent_at + session_id 回填 pending 映射")
+    parser.add_argument(
+        "--reconcile",
+        action="store_true",
+        help="尝试按 sent_at + session_id 回填 pending 映射",
+    )
     parser.add_argument("--window-seconds", type=int, default=180)
     parser.add_argument("--lookback-seconds", type=int, default=3600)
     args = parser.parse_args()
@@ -168,7 +185,9 @@ def main() -> int:
         return 1
 
     if args.reconcile:
-        updated = reconcile_pending(window_seconds=args.window_seconds, lookback_seconds=args.lookback_seconds)
+        updated = reconcile_pending(
+            window_seconds=args.window_seconds, lookback_seconds=args.lookback_seconds
+        )
         print(f"reconciled_rows={updated}")
 
     if args.message_id:
@@ -187,7 +206,9 @@ def main() -> int:
 
     for row in rows:
         status_val = row["status"] if "status" in row.keys() else "resolved"
-        source_val = row["resolution_source"] if "resolution_source" in row.keys() else "legacy"
+        source_val = (
+            row["resolution_source"] if "resolution_source" in row.keys() else "legacy"
+        )
         print(
             f"message_id={row['discord_message_id']} | status={status_val} | "
             f"turn_id={row['turn_id']} | session_id={row['session_id']} | "

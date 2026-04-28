@@ -21,19 +21,31 @@ ENV_PATH = PROJECT_ROOT / ENV_FILE
 
 load_dotenv(ENV_PATH)
 
+
 def _resolve_env_path(env_val: str, default_rel: str) -> Path:
     p = Path(os.getenv(env_val, default_rel)).expanduser()
     if not p.is_absolute():
         p = PROJECT_ROOT / p
     return p.resolve()
 
+
 TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
-HERMES_AGENT_USER_ID = int(os.getenv("HERMES_AGENT_USER_ID", "1492290496222072925") or 1492290496222072925)
-TURN_MAP_DB_PATH = _resolve_env_path("DISCORD_TURN_MAP_DB_PATH", "data/discord_turn_map.db")
-HERMES_STATE_DB_PATH = Path(os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))).expanduser()
+HERMES_AGENT_USER_ID = int(
+    os.getenv("HERMES_AGENT_USER_ID", "1492290496222072925") or 1492290496222072925
+)
+TURN_MAP_DB_PATH = _resolve_env_path(
+    "DISCORD_TURN_MAP_DB_PATH", "data/discord_turn_map.db"
+)
+HERMES_STATE_DB_PATH = Path(
+    os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))
+).expanduser()
 SKILL_AUDIT_DB_PATH = _resolve_env_path("SKILL_AUDIT_DB_PATH", "data/skill_audit.db")
-TURN_MAP_DEFAULT_WINDOW_SECONDS = int(os.getenv("TURN_MAP_DEFAULT_WINDOW_SECONDS", "180") or 180)
-TURN_MAP_RESCUE_WINDOW_SECONDS = int(os.getenv("TURN_MAP_RESCUE_WINDOW_SECONDS", "600") or 600)
+TURN_MAP_DEFAULT_WINDOW_SECONDS = int(
+    os.getenv("TURN_MAP_DEFAULT_WINDOW_SECONDS", "180") or 180
+)
+TURN_MAP_RESCUE_WINDOW_SECONDS = int(
+    os.getenv("TURN_MAP_RESCUE_WINDOW_SECONDS", "600") or 600
+)
 
 
 class UserReviewScore(IntEnum):
@@ -58,7 +70,9 @@ def parse_int_set(raw_value: str) -> set[int]:
         try:
             values.add(int(cleaned))
         except ValueError:
-            logging.getLogger("reaction-audit-bot").warning("Ignoring invalid integer config value: %s", cleaned)
+            logging.getLogger("reaction-audit-bot").warning(
+                "Ignoring invalid integer config value: %s", cleaned
+            )
     return values
 
 
@@ -85,8 +99,7 @@ def ensure_skill_audit_db() -> None:
     ensure_dirs()
     conn = sqlite3.connect(SKILL_AUDIT_DB_PATH)
     try:
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE IF NOT EXISTS reaction_skill_audits (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               discord_message_id TEXT NOT NULL,
@@ -121,11 +134,17 @@ def ensure_skill_audit_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_rsa_created_at
             ON reaction_skill_audits(created_at);
-            """
-        )
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(reaction_skill_audits)").fetchall()}
+            """)
+        cols = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(reaction_skill_audits)"
+            ).fetchall()
+        }
         if "user_review_score" not in cols:
-            conn.execute("ALTER TABLE reaction_skill_audits ADD COLUMN user_review_score INTEGER")
+            conn.execute(
+                "ALTER TABLE reaction_skill_audits ADD COLUMN user_review_score INTEGER"
+            )
         conn.commit()
     finally:
         conn.close()
@@ -140,7 +159,14 @@ def review_score_to_string(score: int | UserReviewScore | None) -> str:
         return f"unknown:{score}"
 
 
-def persist_skill_audit_report(*, report: dict, reacted_by_user_id: int, channel_id: int, guild_id: int | None, emoji: str) -> int:
+def persist_skill_audit_report(
+    *,
+    report: dict,
+    reacted_by_user_id: int,
+    channel_id: int,
+    guild_id: int | None,
+    emoji: str,
+) -> int:
     ensure_skill_audit_db()
     now = datetime.now(timezone.utc).timestamp()
     function_counts = report.get("function_counts") or {}
@@ -185,7 +211,11 @@ def persist_skill_audit_report(*, report: dict, reacted_by_user_id: int, channel
                 int(review_score) if review_score is not None else None,
                 str(report.get("session_id") or ""),
                 str(report.get("turn_id") or ""),
-                int(report.get("assistant_db_id") or 0) if report.get("assistant_db_id") is not None else None,
+                (
+                    int(report.get("assistant_db_id") or 0)
+                    if report.get("assistant_db_id") is not None
+                    else None
+                ),
                 str(report.get("mapping_status") or ""),
                 str(report.get("resolution_source") or ""),
                 str(report.get("reply_to_message_id") or ""),
@@ -207,7 +237,9 @@ def persist_skill_audit_report(*, report: dict, reacted_by_user_id: int, channel
         conn.close()
 
 
-def get_existing_user_review_by_turn(*, turn_id: str, reacted_by_user_id: int) -> dict | None:
+def get_existing_user_review_by_turn(
+    *, turn_id: str, reacted_by_user_id: int
+) -> dict | None:
     ensure_skill_audit_db()
     conn = sqlite3.connect(SKILL_AUDIT_DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -229,7 +261,9 @@ def get_existing_user_review_by_turn(*, turn_id: str, reacted_by_user_id: int) -
         conn.close()
 
 
-def delete_skill_audit_reports_by_turn(*, turn_id: str, reacted_by_user_id: int, emoji: str) -> int:
+def delete_skill_audit_reports_by_turn(
+    *, turn_id: str, reacted_by_user_id: int, emoji: str
+) -> int:
     ensure_skill_audit_db()
     conn = sqlite3.connect(SKILL_AUDIT_DB_PATH)
     try:
@@ -265,12 +299,18 @@ def get_message_ids_for_turn(turn_id: str) -> list[int]:
             """,
             (str(turn_id),),
         ).fetchall()
-        return [int(row["discord_message_id"]) for row in rows if str(row["discord_message_id"] or "").strip()]
+        return [
+            int(row["discord_message_id"])
+            for row in rows
+            if str(row["discord_message_id"] or "").strip()
+        ]
     finally:
         conn.close()
 
 
-async def sync_turn_reaction(*, channel, origin_message_id: int, turn_id: str, emoji: str, action: str) -> None:
+async def sync_turn_reaction(
+    *, channel, origin_message_id: int, turn_id: str, emoji: str, action: str
+) -> None:
     if not turn_id or action not in {"add", "remove"}:
         return
 
@@ -302,7 +342,11 @@ async def sync_turn_reaction(*, channel, origin_message_id: int, turn_id: str, e
                 except discord.HTTPException:
                     pass
         except discord.NotFound:
-            logger.warning("Turn reaction sync skipped missing message: turn_id=%s message_id=%s", turn_id, message_id)
+            logger.warning(
+                "Turn reaction sync skipped missing message: turn_id=%s message_id=%s",
+                turn_id,
+                message_id,
+            )
         except discord.HTTPException:
             logger.exception(
                 "Turn reaction sync failed: action=%s turn_id=%s message_id=%s emoji=%s",
@@ -320,7 +364,11 @@ async def remove_user_reaction(*, message, emoji: str, member) -> bool:
         await message.remove_reaction(emoji, member)
         return True
     except discord.NotFound:
-        logger.warning("Extra user reaction already missing: message_id=%s emoji=%s", getattr(message, "id", None), emoji)
+        logger.warning(
+            "Extra user reaction already missing: message_id=%s emoji=%s",
+            getattr(message, "id", None),
+            emoji,
+        )
         return False
     except discord.HTTPException:
         logger.exception(
@@ -354,7 +402,11 @@ def _fetch_turn_map_row(message_id: int) -> dict | None:
         conn.close()
 
 
-def _find_assistant_after_sent(session_id: str, sent_at: float, window_seconds: int = TURN_MAP_DEFAULT_WINDOW_SECONDS) -> int | None:
+def _find_assistant_after_sent(
+    session_id: str,
+    sent_at: float,
+    window_seconds: int = TURN_MAP_DEFAULT_WINDOW_SECONDS,
+) -> int | None:
     if not session_id or not HERMES_STATE_DB_PATH.exists():
         return None
 
@@ -383,7 +435,9 @@ def _find_assistant_after_sent(session_id: str, sent_at: float, window_seconds: 
         conn.close()
 
 
-def _persist_turn_map_resolution(message_id: int, session_id: str, assistant_db_id: int, resolution_source: str) -> None:
+def _persist_turn_map_resolution(
+    message_id: int, session_id: str, assistant_db_id: int, resolution_source: str
+) -> None:
     if not TURN_MAP_DB_PATH.exists():
         return
 
@@ -415,7 +469,9 @@ def _persist_turn_map_resolution(message_id: int, session_id: str, assistant_db_
         conn.close()
 
 
-def _resolve_turn_map_row(message_id: int, rescue_window_seconds: int | None = None) -> dict | None:
+def _resolve_turn_map_row(
+    message_id: int, rescue_window_seconds: int | None = None
+) -> dict | None:
     row = _fetch_turn_map_row(message_id)
     if not row:
         return None
@@ -428,11 +484,19 @@ def _resolve_turn_map_row(message_id: int, rescue_window_seconds: int | None = N
     if not session_id or sent_at is None:
         return row
 
-    assistant_db_id = _find_assistant_after_sent(session_id, float(sent_at), TURN_MAP_DEFAULT_WINDOW_SECONDS)
+    assistant_db_id = _find_assistant_after_sent(
+        session_id, float(sent_at), TURN_MAP_DEFAULT_WINDOW_SECONDS
+    )
     resolution_source = "reaction_fallback_timestamp"
 
-    if not assistant_db_id and rescue_window_seconds and rescue_window_seconds > TURN_MAP_DEFAULT_WINDOW_SECONDS:
-        assistant_db_id = _find_assistant_after_sent(session_id, float(sent_at), rescue_window_seconds)
+    if (
+        not assistant_db_id
+        and rescue_window_seconds
+        and rescue_window_seconds > TURN_MAP_DEFAULT_WINDOW_SECONDS
+    ):
+        assistant_db_id = _find_assistant_after_sent(
+            session_id, float(sent_at), rescue_window_seconds
+        )
         if assistant_db_id:
             resolution_source = f"reaction_rescue_window_{int(rescue_window_seconds)}s"
 
@@ -443,7 +507,9 @@ def _resolve_turn_map_row(message_id: int, rescue_window_seconds: int | None = N
     row["turn_id"] = f"{session_id}:{assistant_db_id}"
     row["status"] = "resolved"
     row["resolution_source"] = resolution_source
-    _persist_turn_map_resolution(message_id, session_id, assistant_db_id, resolution_source)
+    _persist_turn_map_resolution(
+        message_id, session_id, assistant_db_id, resolution_source
+    )
     return row
 
 
@@ -477,7 +543,9 @@ def _skill_target_name(function_name: str, args: dict) -> str:
 
 
 def get_skill_report_for_message(message_id: int) -> dict:
-    map_row = _resolve_turn_map_row(message_id, rescue_window_seconds=TURN_MAP_RESCUE_WINDOW_SECONDS)
+    map_row = _resolve_turn_map_row(
+        message_id, rescue_window_seconds=TURN_MAP_RESCUE_WINDOW_SECONDS
+    )
     if not map_row:
         raise RuntimeError(f"No mapping found for message_id={message_id}")
 
@@ -569,7 +637,9 @@ def get_skill_report_for_message(message_id: int) -> dict:
         "mapping_status": str(map_row.get("status") or "resolved"),
         "resolution_source": str(map_row.get("resolution_source") or "unknown"),
         "reply_to_message_id": str(map_row.get("reply_to_message_id") or ""),
-        "previous_user_preview": str((user_row["content"] if user_row else "") or "").strip(),
+        "previous_user_preview": str(
+            (user_row["content"] if user_row else "") or ""
+        ).strip(),
         "events": events,
         "status_counts": dict(status_counts),
         "function_counts": dict(function_counts),
@@ -597,7 +667,9 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
         report = get_skill_report_for_message(payload.message_id)
         turn_id = str(report.get("turn_id") or "")
-        existing_review = get_existing_user_review_by_turn(turn_id=turn_id, reacted_by_user_id=payload.user_id)
+        existing_review = get_existing_user_review_by_turn(
+            turn_id=turn_id, reacted_by_user_id=payload.user_id
+        )
         if existing_review:
             existing_emoji = str(existing_review.get("emoji") or "")
             existing_score = existing_review.get("user_review_score")
@@ -613,19 +685,31 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                         pass
                 return
 
-            review_member = payload.member if getattr(payload, "member", None) is not None else None
+            review_member = (
+                payload.member if getattr(payload, "member", None) is not None else None
+            )
             if review_member is None:
                 try:
-                    review_member = await channel.guild.fetch_member(payload.user_id) if getattr(channel, "guild", None) else None
+                    review_member = (
+                        await channel.guild.fetch_member(payload.user_id)
+                        if getattr(channel, "guild", None)
+                        else None
+                    )
                 except Exception:
                     review_member = None
-            removed_extra = await remove_user_reaction(message=message, emoji=reaction_emoji, member=review_member)
+            removed_extra = await remove_user_reaction(
+                message=message, emoji=reaction_emoji, member=review_member
+            )
             await channel.send(
                 (
                     f"⚠️ <@{payload.user_id}> this Hermes turn already has a stored review. "
                     f"You already recorded `{existing_emoji}` ({review_score_to_string(existing_score)}) "
                     f"for turn_id=`{turn_id}` on message `{existing_message_id}`. "
-                    + ("I removed your extra reaction automatically." if removed_extra else "Please remove your extra reaction manually.")
+                    + (
+                        "I removed your extra reaction automatically."
+                        if removed_extra
+                        else "Please remove your extra reaction manually."
+                    )
                 ),
                 reference=message,
                 mention_author=False,
@@ -740,7 +824,11 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
 
 @bot.event
 async def on_ready():
-    logger.info("Reaction audit bot logged in as %s (%s)", bot.user, getattr(bot.user, "id", None))
+    logger.info(
+        "Reaction audit bot logged in as %s (%s)",
+        bot.user,
+        getattr(bot.user, "id", None),
+    )
     logger.info("Watching Hermes agent user id: %s", HERMES_AGENT_USER_ID)
     logger.info("Turn map DB: %s", TURN_MAP_DB_PATH)
     logger.info("Skill audit DB: %s", SKILL_AUDIT_DB_PATH)

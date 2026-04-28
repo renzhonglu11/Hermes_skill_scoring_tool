@@ -19,15 +19,24 @@ load_dotenv(PROJECT_DIR / ENV_FILE)
 
 DATA_DIR = PROJECT_DIR / "data"
 
+
 def _resolve_env_path(env_val: str, default_rel: str) -> Path:
     p = Path(os.getenv(env_val, default_rel)).expanduser()
     if not p.is_absolute():
         p = PROJECT_DIR / p
     return p.resolve()
 
+
 DB_PATH = _resolve_env_path("DISCORD_TURN_MAP_DB_PATH", "data/discord_turn_map.db")
-SESSIONS_JSON = Path(os.getenv("HERMES_SESSIONS_JSON_PATH", str(Path.home() / ".hermes" / "sessions" / "sessions.json"))).expanduser()
-STATE_DB = Path(os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))).expanduser()
+SESSIONS_JSON = Path(
+    os.getenv(
+        "HERMES_SESSIONS_JSON_PATH",
+        str(Path.home() / ".hermes" / "sessions" / "sessions.json"),
+    )
+).expanduser()
+STATE_DB = Path(
+    os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))
+).expanduser()
 
 _PATCH_LOCK = threading.Lock()
 _PATCHED = False
@@ -106,7 +115,9 @@ def _ensure_db() -> None:
         required = {"status", "sent_at", "resolved_at", "resolution_source"}
         if not required.issubset(cols):
             # Migrate old schema in place.
-            conn.execute("ALTER TABLE discord_message_turn_map RENAME TO discord_message_turn_map_old")
+            conn.execute(
+                "ALTER TABLE discord_message_turn_map RENAME TO discord_message_turn_map_old"
+            )
             conn.executescript(SCHEMA_SQL)
             old_cols = _column_names(conn, "discord_message_turn_map_old")
             copyable = [
@@ -247,7 +258,9 @@ def _find_first_assistant_after_sent(
         conn.close()
 
 
-def _find_mapped_session_by_message_id(discord_message_id: str | None) -> tuple[str | None, str | None]:
+def _find_mapped_session_by_message_id(
+    discord_message_id: str | None,
+) -> tuple[str | None, str | None]:
     if not discord_message_id or not DB_PATH.exists():
         return None, None
     conn = sqlite3.connect(DB_PATH)
@@ -270,7 +283,9 @@ def _find_mapped_session_by_message_id(discord_message_id: str | None) -> tuple[
         conn.close()
 
 
-def _find_recent_mapped_session(thread_id: str | None, chat_id: str | None) -> tuple[str | None, str | None]:
+def _find_recent_mapped_session(
+    thread_id: str | None, chat_id: str | None
+) -> tuple[str | None, str | None]:
     if not DB_PATH.exists():
         return None, None
     conn = sqlite3.connect(DB_PATH)
@@ -449,7 +464,9 @@ def _resolve_recent_pending(
             params.append(chat_id)
 
         if reply_to_message_id:
-            where_parts.append("(reply_to_message_id IS NULL OR reply_to_message_id = ?)")
+            where_parts.append(
+                "(reply_to_message_id IS NULL OR reply_to_message_id = ?)"
+            )
             params.append(reply_to_message_id)
 
         query = f"""
@@ -547,21 +564,29 @@ def _record_send_mapping(
         return
 
     meta = metadata or {}
-    thread_id = str(meta.get("thread_id") or get_session_env("HERMES_SESSION_THREAD_ID", "") or "")
-    effective_chat_id = str(chat_id or get_session_env("HERMES_SESSION_CHAT_ID", "") or "")
+    thread_id = str(
+        meta.get("thread_id") or get_session_env("HERMES_SESSION_THREAD_ID", "") or ""
+    )
+    effective_chat_id = str(
+        chat_id or get_session_env("HERMES_SESSION_CHAT_ID", "") or ""
+    )
     reply_to_message_id = str(reply_to or "")
 
     session_key = str(get_session_env("HERMES_SESSION_KEY", "") or "")
     session_id = _load_session_id(session_key) if session_key else None
 
     if not session_id and reply_to_message_id:
-        mapped_key, mapped_session_id = _find_mapped_session_by_message_id(reply_to_message_id)
+        mapped_key, mapped_session_id = _find_mapped_session_by_message_id(
+            reply_to_message_id
+        )
         if mapped_session_id:
             session_key = session_key or str(mapped_key or "")
             session_id = mapped_session_id
 
     if not session_id:
-        mapped_key, mapped_session_id = _find_recent_mapped_session(thread_id, effective_chat_id)
+        mapped_key, mapped_session_id = _find_recent_mapped_session(
+            thread_id, effective_chat_id
+        )
         if mapped_session_id:
             session_key = session_key or str(mapped_key or "")
             session_id = mapped_session_id
@@ -590,7 +615,10 @@ def _record_send_mapping(
     )
 
     if not session_id:
-        LOGGER.info("Recorded pending mapping for %s (session unresolved)", ",".join(message_ids))
+        LOGGER.info(
+            "Recorded pending mapping for %s (session unresolved)",
+            ",".join(message_ids),
+        )
         return
 
     assistant_db_id = _find_assistant_message_exact(session_id, content)
@@ -644,8 +672,16 @@ def install_patch() -> bool:
 
         _ORIGINAL_SEND = DiscordAdapter.send
 
-        async def wrapped_send(self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None):
-            result = await _ORIGINAL_SEND(self, chat_id, content, reply_to=reply_to, metadata=metadata)
+        async def wrapped_send(
+            self,
+            chat_id: str,
+            content: str,
+            reply_to: str | None = None,
+            metadata: dict[str, Any] | None = None,
+        ):
+            result = await _ORIGINAL_SEND(
+                self, chat_id, content, reply_to=reply_to, metadata=metadata
+            )
             try:
                 if getattr(result, "success", False):
                     _record_send_mapping(
@@ -661,7 +697,9 @@ def install_patch() -> bool:
 
         DiscordAdapter.send = wrapped_send
         _PATCHED = True
-        LOGGER.info("Installed DiscordAdapter.send patch for two-phase message->turn mapping")
+        LOGGER.info(
+            "Installed DiscordAdapter.send patch for two-phase message->turn mapping"
+        )
         return True
 
 

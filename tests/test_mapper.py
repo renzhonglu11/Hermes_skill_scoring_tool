@@ -33,7 +33,9 @@ def test_load_session_id_reads_session_id_from_sessions_json(tmp_path, monkeypat
     assert mapper._load_session_id("session-key") == "session-123"
 
 
-def test_ensure_db_migrates_legacy_schema_to_pending_and_resolved_rows(tmp_path, monkeypatch):
+def test_ensure_db_migrates_legacy_schema_to_pending_and_resolved_rows(
+    tmp_path, monkeypatch
+):
     data_dir = tmp_path / "data"
     db_path = data_dir / "discord_turn_map.db"
     monkeypatch.setattr(mapper, "DATA_DIR", data_dir)
@@ -42,8 +44,7 @@ def test_ensure_db_migrates_legacy_schema_to_pending_and_resolved_rows(tmp_path,
     data_dir.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               session_key TEXT,
@@ -59,8 +60,7 @@ def test_ensure_db_migrates_legacy_schema_to_pending_and_resolved_rows(tmp_path,
               created_at REAL NOT NULL,
               updated_at REAL NOT NULL
             );
-            """
-        )
+            """)
         conn.execute(
             """
             INSERT INTO discord_message_turn_map (

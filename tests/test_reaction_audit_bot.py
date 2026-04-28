@@ -17,8 +17,7 @@ def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monke
 
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE reaction_skill_audits (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               discord_message_id TEXT NOT NULL,
@@ -43,8 +42,7 @@ def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monke
               raw_report_json TEXT NOT NULL,
               created_at REAL NOT NULL
             );
-            """
-        )
+            """)
         conn.commit()
     finally:
         conn.close()
@@ -53,7 +51,12 @@ def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monke
 
     conn = sqlite3.connect(db_path)
     try:
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(reaction_skill_audits)").fetchall()}
+        cols = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(reaction_skill_audits)"
+            ).fetchall()
+        }
     finally:
         conn.close()
 
@@ -66,8 +69,7 @@ def test_get_message_ids_for_turn_returns_sorted_ids(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(turn_map_db)
     try:
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               turn_id TEXT,
@@ -78,8 +80,7 @@ def test_get_message_ids_for_turn_returns_sorted_ids(tmp_path, monkeypatch):
               ('1003', 'session-1:42', 3),
               ('1001', 'session-1:42', 1),
               ('1002', 'session-1:42', 2);
-            """
-        )
+            """)
         conn.commit()
     finally:
         conn.close()
@@ -97,8 +98,7 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
 
     conn = sqlite3.connect(turn_map_db)
     try:
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE discord_message_turn_map (
               discord_message_id TEXT PRIMARY KEY,
               session_key TEXT,
@@ -123,16 +123,14 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
               discord_message_id, session_id, turn_id, assistant_db_id, status,
               resolution_source, sent_at, created_at, updated_at
             ) VALUES ('1001', 'session-1', 'session-1:44', 44, 'resolved', 'send_exact', 1000.0, 1000.0, 1000.0);
-            """
-        )
+            """)
         conn.commit()
     finally:
         conn.close()
 
     conn = sqlite3.connect(state_db)
     try:
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE messages (
               id INTEGER PRIMARY KEY,
               session_id TEXT NOT NULL,
@@ -144,31 +142,44 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
               finish_reason TEXT,
               timestamp REAL NOT NULL
             );
-            """
-        )
+            """)
         conn.execute(
             "INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, tool_name, finish_reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (40, 'session-1', 'user', 'please inspect skills', None, None, None, None, 995.0),
+            (
+                40,
+                "session-1",
+                "user",
+                "please inspect skills",
+                None,
+                None,
+                None,
+                None,
+                995.0,
+            ),
         )
         conn.execute(
             "INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, tool_name, finish_reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 41,
-                'session-1',
-                'assistant',
-                '',
-                json.dumps([
-                    {
-                        "id": "call_1",
-                        "function": {
-                            "name": "skill_view",
-                            "arguments": json.dumps({"name": "hermes-discord-message-turn-map-hook"}),
-                        },
-                    }
-                ]),
+                "session-1",
+                "assistant",
+                "",
+                json.dumps(
+                    [
+                        {
+                            "id": "call_1",
+                            "function": {
+                                "name": "skill_view",
+                                "arguments": json.dumps(
+                                    {"name": "hermes-discord-message-turn-map-hook"}
+                                ),
+                            },
+                        }
+                    ]
+                ),
                 None,
                 None,
-                'tool_calls',
+                "tool_calls",
                 996.0,
             ),
         )
@@ -176,19 +187,29 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
             "INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, tool_name, finish_reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 44,
-                'session-1',
-                'assistant',
-                'done',
+                "session-1",
+                "assistant",
+                "done",
                 None,
                 None,
                 None,
-                'stop',
+                "stop",
                 997.0,
             ),
         )
         conn.execute(
             "INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, tool_name, finish_reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (43, 'session-1', 'tool', '{"success": true}', None, 'call_1', 'skill_view', None, 996.5),
+            (
+                43,
+                "session-1",
+                "tool",
+                '{"success": true}',
+                None,
+                "call_1",
+                "skill_view",
+                None,
+                996.5,
+            ),
         )
         conn.commit()
     finally:
@@ -206,22 +227,23 @@ def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatc
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+
 @pytest.mark.asyncio
 async def test_on_raw_reaction_add_ignores_bot_itself():
     # Setup mock payload
     payload = MagicMock()
     payload.user_id = 999
-    
+
     # Mock bot user
     bot_user_mock = MagicMock()
     bot_user_mock.id = 999
-    
+
     with patch.object(rab, "bot") as mock_bot:
         mock_bot.user = bot_user_mock
-        
+
         # Call the event
         await rab.on_raw_reaction_add(payload)
-        
+
         # Ensure it returns early
         mock_bot.get_channel.assert_not_called()
 
@@ -239,22 +261,24 @@ async def test_on_raw_reaction_add_processes_valid_reaction(monkeypatch):
     # Mock bot
     bot_user_mock = MagicMock()
     bot_user_mock.id = 999
-    
+
     mock_channel = AsyncMock()
     mock_message = AsyncMock()
     mock_message.author.id = rab.HERMES_AGENT_USER_ID
     mock_channel.fetch_message.return_value = mock_message
 
-    with patch.object(rab, "bot") as mock_bot, \
-         patch.object(rab, "get_skill_report_for_message") as mock_get_report, \
-         patch.object(rab, "get_existing_user_review_by_turn", return_value=None), \
-         patch.object(rab, "persist_skill_audit_report", return_value=1) as mock_persist, \
-         patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync:
-        
+    with (
+        patch.object(rab, "bot") as mock_bot,
+        patch.object(rab, "get_skill_report_for_message") as mock_get_report,
+        patch.object(rab, "get_existing_user_review_by_turn", return_value=None),
+        patch.object(rab, "persist_skill_audit_report", return_value=1) as mock_persist,
+        patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+    ):
+
         mock_bot.user = bot_user_mock
         mock_bot.get_channel.return_value = mock_channel
         mock_get_report.return_value = {"turn_id": "session-1:44", "message_id": "789"}
-        
+
         await rab.on_raw_reaction_add(payload)
 
         # Assertions
@@ -264,7 +288,7 @@ async def test_on_raw_reaction_add_processes_valid_reaction(monkeypatch):
             origin_message_id=789,
             turn_id="session-1:44",
             emoji="✅",
-            action="add"
+            action="add",
         )
 
 
@@ -281,7 +305,7 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
 
     bot_user_mock = MagicMock()
     bot_user_mock.id = 999
-    
+
     mock_channel = AsyncMock()
     mock_message = AsyncMock()
     mock_message.author.id = rab.HERMES_AGENT_USER_ID
@@ -294,26 +318,30 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
         "user_review_score": 1,
     }
 
-    with patch.object(rab, "bot") as mock_bot, \
-         patch.object(rab, "get_skill_report_for_message") as mock_get_report, \
-         patch.object(rab, "get_existing_user_review_by_turn", return_value=existing_review), \
-         patch.object(rab, "remove_user_reaction", new_callable=AsyncMock, return_value=True) as mock_remove, \
-         patch.object(rab, "persist_skill_audit_report") as mock_persist, \
-         patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync:
-        
+    with (
+        patch.object(rab, "bot") as mock_bot,
+        patch.object(rab, "get_skill_report_for_message") as mock_get_report,
+        patch.object(
+            rab, "get_existing_user_review_by_turn", return_value=existing_review
+        ),
+        patch.object(
+            rab, "remove_user_reaction", new_callable=AsyncMock, return_value=True
+        ) as mock_remove,
+        patch.object(rab, "persist_skill_audit_report") as mock_persist,
+        patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+    ):
+
         mock_bot.user = bot_user_mock
         mock_bot.get_channel.return_value = mock_channel
         mock_get_report.return_value = {"turn_id": "session-1:44", "message_id": "789"}
-        
+
         await rab.on_raw_reaction_add(payload)
 
         # Assertions
         mock_persist.assert_not_called()
         mock_sync.assert_not_called()
         mock_remove.assert_called_once_with(
-            message=mock_message,
-            emoji="✅",
-            member=payload.member
+            message=mock_message, emoji="✅", member=payload.member
         )
         mock_channel.send.assert_called_once()
 
@@ -330,31 +358,32 @@ async def test_on_raw_reaction_remove_processes_valid_reaction(monkeypatch):
 
     bot_user_mock = MagicMock()
     bot_user_mock.id = 999
-    
+
     mock_channel = AsyncMock()
-    
-    with patch.object(rab, "bot") as mock_bot, \
-         patch.object(rab, "get_skill_report_for_message") as mock_get_report, \
-         patch.object(rab, "delete_skill_audit_reports_by_turn", return_value=1) as mock_delete, \
-         patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync:
-        
+
+    with (
+        patch.object(rab, "bot") as mock_bot,
+        patch.object(rab, "get_skill_report_for_message") as mock_get_report,
+        patch.object(
+            rab, "delete_skill_audit_reports_by_turn", return_value=1
+        ) as mock_delete,
+        patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+    ):
+
         mock_bot.user = bot_user_mock
         mock_bot.get_channel.return_value = mock_channel
         mock_get_report.return_value = {"turn_id": "session-1:44"}
-        
+
         await rab.on_raw_reaction_remove(payload)
 
         # Assertions
         mock_delete.assert_called_once_with(
-            turn_id="session-1:44",
-            reacted_by_user_id=123,
-            emoji="✅"
+            turn_id="session-1:44", reacted_by_user_id=123, emoji="✅"
         )
         mock_sync.assert_called_once_with(
             channel=mock_channel,
             origin_message_id=789,
             turn_id="session-1:44",
             emoji="✅",
-            action="remove"
+            action="remove",
         )
-
