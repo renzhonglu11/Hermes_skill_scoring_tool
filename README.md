@@ -308,7 +308,7 @@ That is one of the main reasons this project exists. Split replies and sibling m
 
 ![Reaction Scoring Demo](./video/example_use_case.gif)
 
-*(View the original high-quality video here: [`video/example_use_case.mkv`](./video/example_use_case.mkv))*
+*(View the original high-quality video here: [`video/example_use_case.mp4`](./video/example_use_case.mp4))*
 
 When a user reacts (e.g. ✅) to a Hermes reply, the bot:
 1. Maps the Discord `message_id` to a `turn_id` via `discord_message_turn_map`.

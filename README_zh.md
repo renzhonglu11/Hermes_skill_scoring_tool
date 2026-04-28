@@ -309,7 +309,7 @@ CREATE TABLE IF NOT EXISTS discord_message_turn_map (
 
 ![Reaction Scoring Demo](./video/example_use_case.gif)
 
-*(在这里查看原始高质量视频：[`video/example_use_case.mkv`](./video/example_use_case.mkv))*
+*(在这里查看原始高质量视频：[`video/example_use_case.mp4`](./video/example_use_case.mp4))*
 
 当用户对 Hermes 回复做出反应（例如 ✅）时，机器人将：
 1. 通过 `discord_message_turn_map` 将 Discord `message_id` 映射到 `turn_id`。
