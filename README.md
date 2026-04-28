@@ -26,6 +26,19 @@ Hermes knows the outbound Discord `message_id` at send time, but it does not nat
 
 This repository fills that gap.
 
+---
+
+## Example use case
+
+![Reaction Scoring Demo](./video/example_use_case.gif)
+
+*(View the original high-quality video here: [`video/example_use_case.mp4`](./video/example_use_case.mp4))*
+
+When a user reacts (e.g. ✅) to a Hermes reply, the bot:
+1. Maps the Discord `message_id` to a `turn_id` via `discord_message_turn_map`.
+2. Fetches tool execution context from `~/.hermes/state.db`.
+3. Records the score and skill usage into `skill_audit.db`.
+
 ## Why this exists
 
 The long-term goal is to let users **manually score the skills used by Hermes Agent**.
@@ -302,15 +315,5 @@ That is one of the main reasons this project exists. Split replies and sibling m
 - If the mapping DB/table is deleted while Hermes Gateway is still running, restart the gateway so `_ensure_db()` can recreate it cleanly
 - In delayed-write cases, a valid assistant row may appear well after the initial reconciliation window; rescue logic may need a wider window such as 600 seconds
 
----
 
-## Example use case
 
-![Reaction Scoring Demo](./video/example_use_case.gif)
-
-*(View the original high-quality video here: [`video/example_use_case.mp4`](./video/example_use_case.mp4))*
-
-When a user reacts (e.g. ✅) to a Hermes reply, the bot:
-1. Maps the Discord `message_id` to a `turn_id` via `discord_message_turn_map`.
-2. Fetches tool execution context from `~/.hermes/state.db`.
-3. Records the score and skill usage into `skill_audit.db`.
