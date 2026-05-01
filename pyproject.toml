@@ -9,6 +9,10 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[tool.setuptools.packages.find]
+include = ["hermes_discord_skill_audit*"]
+exclude = ["data*", "video*", "examples*", "tests*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
