@@ -5,6 +5,7 @@ import sqlite3
 import pytest
 
 from hermes_discord_skill_audit import reaction_audit as core
+from hermes_discord_skill_audit import state
 
 
 def test_core_should_delete_turn_review_only_for_owner_message_and_emoji():
@@ -34,8 +35,8 @@ def test_core_should_delete_turn_review_only_for_owner_message_and_emoji():
 
 def test_core_move_existing_user_review_to_message_updates_only_matching_turn_user_emoji(tmp_path, monkeypatch):
     db_path = tmp_path / "skill_audit.db"
-    monkeypatch.setattr(core, "SKILL_AUDIT_DB_PATH", db_path)
-    monkeypatch.setattr(core, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(state, "SKILL_AUDIT_DB_PATH", db_path)
+    monkeypatch.setattr(state, "DATA_DIR", tmp_path)
     core.ensure_skill_audit_db()
 
     conn = sqlite3.connect(db_path)

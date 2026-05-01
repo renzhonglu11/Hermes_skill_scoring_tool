@@ -5,6 +5,8 @@ import sqlite3
 from pathlib import Path
 
 from hermes_discord_skill_audit import reaction_audit as rab
+from hermes_discord_skill_audit import discord_reactions as reactions
+from hermes_discord_skill_audit import state
 
 
 def test_parse_int_set_skips_invalid_values():
@@ -13,7 +15,7 @@ def test_parse_int_set_skips_invalid_values():
 
 def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monkeypatch):
     db_path = tmp_path / "skill_audit.db"
-    monkeypatch.setattr(rab, "SKILL_AUDIT_DB_PATH", db_path)
+    monkeypatch.setattr(state, "SKILL_AUDIT_DB_PATH", db_path)
 
     conn = sqlite3.connect(db_path)
     try:
@@ -67,7 +69,7 @@ def test_ensure_skill_audit_db_creates_table_and_migrates_column(tmp_path, monke
 
 def test_get_message_ids_for_turn_returns_sorted_ids(tmp_path, monkeypatch):
     turn_map_db = tmp_path / "discord_turn_map.db"
-    monkeypatch.setattr(rab, "TURN_MAP_DB_PATH", turn_map_db)
+    monkeypatch.setattr(state, "TURN_MAP_DB_PATH", turn_map_db)
 
     conn = sqlite3.connect(turn_map_db)
     try:
@@ -95,10 +97,10 @@ def test_get_message_ids_for_turn_returns_sorted_ids(tmp_path, monkeypatch):
 def test_get_skill_report_for_message_collects_skill_events(tmp_path, monkeypatch):
     turn_map_db = tmp_path / "discord_turn_map.db"
     state_db = tmp_path / "state.db"
-    monkeypatch.setattr(rab, "TURN_MAP_DB_PATH", turn_map_db)
-    monkeypatch.setattr(rab, "HERMES_STATE_DB_PATH", state_db)
-    monkeypatch.setattr(rab, "TURN_MAP_DEFAULT_WINDOW_SECONDS", 180)
-    monkeypatch.setattr(rab, "TURN_MAP_RESCUE_WINDOW_SECONDS", 600)
+    monkeypatch.setattr(state, "TURN_MAP_DB_PATH", turn_map_db)
+    monkeypatch.setattr(state, "HERMES_STATE_DB_PATH", state_db)
+    monkeypatch.setattr(state, "TURN_MAP_DEFAULT_WINDOW_SECONDS", 180)
+    monkeypatch.setattr(state, "TURN_MAP_RESCUE_WINDOW_SECONDS", 600)
 
     conn = sqlite3.connect(turn_map_db)
     try:
@@ -246,11 +248,11 @@ async def test_on_raw_reaction_add_ignores_bot_itself():
     bot_user_mock = MagicMock()
     bot_user_mock.id = 999
 
-    with patch.object(rab, "bot") as mock_bot:
+    with patch.object(state, "bot") as mock_bot:
         mock_bot.user = bot_user_mock
 
         # Call the event
-        await rab.on_raw_reaction_add(payload)
+        await reactions.on_raw_reaction_add(payload)
 
         # Ensure it returns early
         mock_bot.get_channel.assert_not_called()
@@ -258,7 +260,7 @@ async def test_on_raw_reaction_add_ignores_bot_itself():
 
 @pytest.mark.asyncio
 async def test_on_raw_reaction_add_processes_valid_reaction(monkeypatch):
-    monkeypatch.setattr(rab, "REACTION_ALLOWED_USER_IDS", {123})
+    monkeypatch.setattr(state, "REACTION_ALLOWED_USER_IDS", {123})
     payload = MagicMock()
     payload.user_id = 123
     payload.emoji = "✅"
@@ -272,22 +274,22 @@ async def test_on_raw_reaction_add_processes_valid_reaction(monkeypatch):
 
     mock_channel = AsyncMock()
     mock_message = AsyncMock()
-    mock_message.author.id = rab.HERMES_AGENT_USER_ID
+    mock_message.author.id = state.HERMES_AGENT_USER_ID
     mock_channel.fetch_message.return_value = mock_message
 
     with (
-        patch.object(rab, "bot") as mock_bot,
-        patch.object(rab, "get_skill_report_for_message") as mock_get_report,
-        patch.object(rab, "get_existing_user_review_by_turn", return_value=None),
-        patch.object(rab, "persist_skill_audit_report", return_value=1) as mock_persist,
-        patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+        patch.object(state, "bot") as mock_bot,
+        patch.object(reactions, "get_skill_report_for_message") as mock_get_report,
+        patch.object(reactions, "get_existing_user_review_by_turn", return_value=None),
+        patch.object(reactions, "persist_skill_audit_report", return_value=1) as mock_persist,
+        patch.object(reactions, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
     ):
 
         mock_bot.user = bot_user_mock
         mock_bot.get_channel.return_value = mock_channel
         mock_get_report.return_value = {"turn_id": "session-1:44", "message_id": "789"}
 
-        await rab.on_raw_reaction_add(payload)
+        await reactions.on_raw_reaction_add(payload)
 
         # Assertions
         mock_persist.assert_called_once()
@@ -302,7 +304,7 @@ async def test_on_raw_reaction_add_processes_valid_reaction(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
-    monkeypatch.setattr(rab, "REACTION_ALLOWED_USER_IDS", {123})
+    monkeypatch.setattr(state, "REACTION_ALLOWED_USER_IDS", {123})
     payload = MagicMock()
     payload.user_id = 123
     payload.emoji = "✅"
@@ -316,7 +318,7 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
 
     mock_channel = AsyncMock()
     mock_message = AsyncMock()
-    mock_message.author.id = rab.HERMES_AGENT_USER_ID
+    mock_message.author.id = state.HERMES_AGENT_USER_ID
     mock_channel.fetch_message.return_value = mock_message
 
     existing_review = {
@@ -327,23 +329,23 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
     }
 
     with (
-        patch.object(rab, "bot") as mock_bot,
-        patch.object(rab, "get_skill_report_for_message") as mock_get_report,
+        patch.object(state, "bot") as mock_bot,
+        patch.object(reactions, "get_skill_report_for_message") as mock_get_report,
         patch.object(
-            rab, "get_existing_user_review_by_turn", return_value=existing_review
+            reactions, "get_existing_user_review_by_turn", return_value=existing_review
         ),
         patch.object(
-            rab, "remove_user_reaction", new_callable=AsyncMock, return_value=True
+            reactions, "remove_user_reaction", new_callable=AsyncMock, return_value=True
         ) as mock_remove,
-        patch.object(rab, "persist_skill_audit_report") as mock_persist,
-        patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+        patch.object(reactions, "persist_skill_audit_report") as mock_persist,
+        patch.object(reactions, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
     ):
 
         mock_bot.user = bot_user_mock
         mock_bot.get_channel.return_value = mock_channel
         mock_get_report.return_value = {"turn_id": "session-1:44", "message_id": "789"}
 
-        await rab.on_raw_reaction_add(payload)
+        await reactions.on_raw_reaction_add(payload)
 
         # Assertions
         mock_persist.assert_not_called()
@@ -356,7 +358,7 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_on_raw_reaction_remove_processes_valid_reaction(monkeypatch):
-    monkeypatch.setattr(rab, "REACTION_ALLOWED_USER_IDS", {123})
+    monkeypatch.setattr(state, "REACTION_ALLOWED_USER_IDS", {123})
     payload = MagicMock()
     payload.user_id = 123
     payload.emoji = "✅"
@@ -370,24 +372,24 @@ async def test_on_raw_reaction_remove_processes_valid_reaction(monkeypatch):
     mock_channel = AsyncMock()
 
     with (
-        patch.object(rab, "bot") as mock_bot,
-        patch.object(rab, "get_skill_report_for_message") as mock_get_report,
+        patch.object(state, "bot") as mock_bot,
+        patch.object(reactions, "get_skill_report_for_message") as mock_get_report,
         patch.object(
-            rab,
+            reactions,
             "get_existing_user_review_by_turn",
             return_value={"discord_message_id": "789", "emoji": "✅"},
         ),
         patch.object(
-            rab, "delete_skill_audit_reports_by_turn", return_value=1
+            reactions, "delete_skill_audit_reports_by_turn", return_value=1
         ) as mock_delete,
-        patch.object(rab, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+        patch.object(reactions, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
     ):
 
         mock_bot.user = bot_user_mock
         mock_bot.get_channel.return_value = mock_channel
         mock_get_report.return_value = {"turn_id": "session-1:44"}
 
-        await rab.on_raw_reaction_remove(payload)
+        await reactions.on_raw_reaction_remove(payload)
 
         # Assertions
         mock_delete.assert_called_once_with(
