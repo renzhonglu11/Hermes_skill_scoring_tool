@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from examples import reaction_audit_bot as rab
+from hermes_discord_skill_audit import reaction_audit as rab
 
 
 def test_parse_int_set_skips_invalid_values():
@@ -372,6 +372,11 @@ async def test_on_raw_reaction_remove_processes_valid_reaction(monkeypatch):
     with (
         patch.object(rab, "bot") as mock_bot,
         patch.object(rab, "get_skill_report_for_message") as mock_get_report,
+        patch.object(
+            rab,
+            "get_existing_user_review_by_turn",
+            return_value={"discord_message_id": "789", "emoji": "✅"},
+        ),
         patch.object(
             rab, "delete_skill_audit_reports_by_turn", return_value=1
         ) as mock_delete,
