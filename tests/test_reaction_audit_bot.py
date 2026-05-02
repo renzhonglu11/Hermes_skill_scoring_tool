@@ -357,6 +357,78 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_on_raw_reaction_add_skips_pending_turn_without_error(monkeypatch):
+    monkeypatch.setattr(state, "REACTION_ALLOWED_USER_IDS", {123})
+    payload = MagicMock()
+    payload.user_id = 123
+    payload.emoji = "✅"
+    payload.channel_id = 456
+    payload.message_id = 789
+    payload.guild_id = 101112
+
+    bot_user_mock = MagicMock()
+    bot_user_mock.id = 999
+
+    mock_channel = AsyncMock()
+    mock_message = AsyncMock()
+    mock_message.author.id = state.HERMES_AGENT_USER_ID
+    mock_channel.fetch_message.return_value = mock_message
+
+    with (
+        patch.object(state, "bot") as mock_bot,
+        patch.object(
+            reactions,
+            "get_skill_report_for_message",
+            side_effect=RuntimeError("message_id=789 已找到映射，但 turn 尚未解析完成（status=pending）"),
+        ),
+        patch.object(reactions, "persist_skill_audit_report") as mock_persist,
+        patch.object(state.logger, "warning") as mock_warning,
+        patch.object(state.logger, "exception") as mock_exception,
+    ):
+        mock_bot.user = bot_user_mock
+        mock_bot.get_channel.return_value = mock_channel
+
+        await reactions.on_raw_reaction_add(payload)
+
+        mock_persist.assert_not_called()
+        mock_warning.assert_called_once()
+        mock_exception.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_on_raw_reaction_remove_skips_pending_turn_without_error(monkeypatch):
+    monkeypatch.setattr(state, "REACTION_ALLOWED_USER_IDS", {123})
+    payload = MagicMock()
+    payload.user_id = 123
+    payload.emoji = "✅"
+    payload.channel_id = 456
+    payload.message_id = 789
+    payload.guild_id = 101112
+
+    bot_user_mock = MagicMock()
+    bot_user_mock.id = 999
+
+    with (
+        patch.object(state, "bot") as mock_bot,
+        patch.object(
+            reactions,
+            "get_skill_report_for_message",
+            side_effect=RuntimeError("message_id=789 已找到映射，但 turn 尚未解析完成（status=pending）"),
+        ),
+        patch.object(reactions, "delete_skill_audit_reports_by_turn") as mock_delete,
+        patch.object(state.logger, "warning") as mock_warning,
+        patch.object(state.logger, "exception") as mock_exception,
+    ):
+        mock_bot.user = bot_user_mock
+
+        await reactions.on_raw_reaction_remove(payload)
+
+        mock_delete.assert_not_called()
+        mock_warning.assert_called_once()
+        mock_exception.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_on_raw_reaction_remove_processes_valid_reaction(monkeypatch):
     monkeypatch.setattr(state, "REACTION_ALLOWED_USER_IDS", {123})
     payload = MagicMock()

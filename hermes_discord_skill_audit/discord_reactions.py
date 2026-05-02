@@ -201,6 +201,24 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             report.get("status_counts"),
             state.SKILL_AUDIT_DB_PATH,
         )
+    except RuntimeError as exc:
+        if "turn 尚未解析完成" in str(exc):
+            state.logger.warning(
+                "Reaction skill audit skipped because turn mapping is still pending: message=%s channel=%s reacted_by=%s emoji=%s error=%s",
+                payload.message_id,
+                payload.channel_id,
+                payload.user_id,
+                reaction_emoji,
+                exc,
+            )
+            return
+        state.logger.exception(
+            "Failed to process reaction skill audit for message=%s channel=%s reacted_by=%s emoji=%s",
+            payload.message_id,
+            payload.channel_id,
+            payload.user_id,
+            reaction_emoji,
+        )
     except Exception:
         state.logger.exception(
             "Failed to process reaction skill audit for message=%s channel=%s reacted_by=%s emoji=%s",
@@ -274,6 +292,24 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
             turn_id,
             removed_count,
             state.SKILL_AUDIT_DB_PATH,
+        )
+    except RuntimeError as exc:
+        if "turn 尚未解析完成" in str(exc):
+            state.logger.warning(
+                "Reaction skill audit remove skipped because turn mapping is still pending: message=%s channel=%s reacted_by=%s emoji=%s error=%s",
+                payload.message_id,
+                payload.channel_id,
+                payload.user_id,
+                reaction_emoji,
+                exc,
+            )
+            return
+        state.logger.exception(
+            "Failed to remove reaction skill audit for message=%s channel=%s reacted_by=%s emoji=%s",
+            payload.message_id,
+            payload.channel_id,
+            payload.user_id,
+            reaction_emoji,
         )
     except Exception:
         state.logger.exception(
