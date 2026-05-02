@@ -1,0 +1,67 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+.installed.cfg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+tests/test_package_boundaries.py
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+venv.bak/
+
+# VS Code
+.vscode/
+
+# IDEs
+.idea/
+
+# Environment files
+.env
+.env.production
+.env.test
+# .env.*
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Database backups and local DB files
+data/discord_turn_map.db.bak*
+*.db.bak*
+# If you want to ignore local sqlite DBs, uncomment the following lines
+#*.db
+#*.sqlite3
+
+# Python bytecode
+*.pyc
+
+.gitignore
+
+data
