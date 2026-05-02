@@ -28,14 +28,6 @@ from .scores import REACTION_SCORE_MAP, UserReviewScore, review_score_to_string
 from .state import configure_reaction_audit
 from .turn_map import get_message_ids_for_turn, get_skill_report_for_message
 
-_SYSTEM_INFO_EXPORTS = {
-    "format_berlin_time",
-    "format_cron_datetime",
-    "get_cron_status",
-    "get_hermes_bin",
-    "get_vps_stats",
-}
-
 _STATE_EXPORTS = {
     "DATA_DIR",
     "logger",
@@ -54,9 +46,6 @@ _STATE_EXPORTS = {
 def __getattr__(name: str):
     if name in _STATE_EXPORTS:
         return getattr(state, name)
-    if name in _SYSTEM_INFO_EXPORTS:
-        from . import system_info
-        return getattr(system_info, name)
     raise AttributeError(name)
 
 
@@ -95,10 +84,5 @@ __all__ = [
     "remove_user_reaction",
     "on_raw_reaction_add",
     "on_raw_reaction_remove",
-    "format_berlin_time",
-    "get_hermes_bin",
-    "format_cron_datetime",
-    "get_cron_status",
-    "get_vps_stats",
     *_STATE_EXPORTS,
 ]
