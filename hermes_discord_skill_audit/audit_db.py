@@ -251,6 +251,5 @@ def delete_skill_audit_reports_by_turn(*, turn_id: str, reacted_by_user_id: int,
 def should_delete_turn_review_on_remove(*, payload_message_id: int, reaction_emoji: str, existing_review: dict | None) -> bool:
     if not existing_review:
         return False
-    stored_message_id = str(existing_review.get("discord_message_id") or "").strip()
     stored_emoji = str(existing_review.get("emoji") or "").strip()
-    return stored_message_id == str(payload_message_id) and stored_emoji == str(reaction_emoji)
+    return stored_emoji == str(reaction_emoji)

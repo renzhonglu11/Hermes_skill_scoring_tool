@@ -8,7 +8,7 @@ from hermes_discord_skill_audit import reaction_audit as core
 from hermes_discord_skill_audit import state
 
 
-def test_core_should_delete_turn_review_only_for_owner_message_and_emoji():
+def test_core_should_delete_turn_review_for_same_emoji_from_any_message_in_turn():
     review = {"discord_message_id": "1001", "emoji": "✅"}
 
     assert core.should_delete_turn_review_on_remove(
@@ -16,7 +16,7 @@ def test_core_should_delete_turn_review_only_for_owner_message_and_emoji():
         reaction_emoji="✅",
         existing_review=review,
     )
-    assert not core.should_delete_turn_review_on_remove(
+    assert core.should_delete_turn_review_on_remove(
         payload_message_id=1002,
         reaction_emoji="✅",
         existing_review=review,
