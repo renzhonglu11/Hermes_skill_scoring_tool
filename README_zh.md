@@ -1,126 +1,246 @@
-# Hermes Skill Scoring Support Tool (Hermes 技能评分支持工具)
+# Hermes Discord Skill Audit（Hermes Discord 技能审查）
 
 [English](README.md) | [中文](README_zh.md)
 
 [![Status](https://img.shields.io/badge/status-active%20prototype-blue)](./README_zh.md)
-[![Scope](https://img.shields.io/badge/scope-discord%20turn%20mapping-5865F2)](./README_zh.md)
+[![Scope](https://img.shields.io/badge/scope-turn%20mapping%20%2B%20reaction%20audit-5865F2)](./README_zh.md)
 [![Storage](https://img.shields.io/badge/storage-sqlite-green)](./README_zh.md)
 [![Integration](https://img.shields.io/badge/integration-Hermes%20Gateway-orange)](./README_zh.md)
 
-用于 **在 Discord 上对 Hermes Agent 进行人工技能审查** 的基础设施。
+这是一个小型、非侵入式工具集，用于在 Discord 中收集 **用户对 Hermes Agent 技能使用情况的人工反馈**。
 
-本项目捕获可见的 Hermes 回复对应的 Discord `message_id`，将其映射回正确的 Hermes `turn_id`，并为 **人工参与的技能评分** 提供所需的基础支持。
+当前项目已经从早期的「只做 message_id -> turn_id 映射」升级为两层架构：
 
----
+1. **Turn Mapper（轮次映射层）**：记录可见 Discord `message_id` 属于哪个 Hermes assistant turn。
+2. **Reaction Audit Package（reaction 审查包）**：让 sidecar Discord bot 监听 `✅ / ❌ / 👌` reaction，重构该 turn 使用过的技能，并把结构化审查结果写入 SQLite。
 
-## 概述
-
-当用户在 Discord 中对 Hermes 的回复做出反应（reaction）时，评分系统需要知道 **实际正在评判的是哪个 Hermes 对话轮次（turn）**。
-
-这听起来很简单，但在实际应用中，一个逻辑上的 Hermes 对话轮次可能会产生：
-
-- 一个标准的可见 Discord 回复
-- 多个被拆分的 Discord 消息块
-- 一个工具阶段（tool-phase）消息加上一个最终的文本回复
-
-Hermes 在发送时知道出站的 Discord `message_id`，但它在原生层面上并没有为下游审查工作流持久化存储可靠的 `message_id -> turn_id` 映射。
-
-本仓库填补了这一空白。
+不需要 fork 或直接修改 Hermes 源码。映射层通过 Hermes Gateway startup hook 安装；审查层是普通 Python package，可以被任何 Discord bot 引入。
 
 ---
 
-## 示例用例
+## 这个项目解决什么问题
 
-![Reaction Scoring Demo](./video/example_use_case.gif)
+一个逻辑上的 Hermes 回复，在 Discord 里可能会表现为多条消息：
 
-*(在这里查看原始高质量视频：[`video/example_use_case.mp4`](./video/example_use_case.mp4))*
+- tool-phase 状态消息 + 最终文本回复
+- 由于 Discord 长度限制拆分出的多个 chunk
+- thread/topic 内的后续消息
 
-当用户对 Hermes 回复做出反应（例如 ✅）时，机器人将：
-1. 通过 `discord_message_turn_map` 将 Discord `message_id` 映射到 `turn_id`。
-2. 从 `~/.hermes/state.db` 中获取工具执行上下文。
-3. 将评分和技能使用情况记录到 `skill_audit.db` 中。
-
-## 为什么存在这个项目
-
-长远目标是让用户能够 **对 Hermes Agent 使用的技能进行人工评分**。
-
-未来的审查操作示例：
-
-- `✅` = 好 (good)
-- `❌` = 不好 (not good)
-- `👌` = 还行 (okay)
-
-但在任何评分工作流能够被信任之前，系统必须可靠地回答：
+人工评分时，真正重要的问题不是：
 
 ```text
-这条 Discord 消息属于哪个 Hermes 对话轮次？
+哪条 Discord 消息被点了 reaction？
 ```
 
-本仓库专注于首先解决这个问题。
+而是：
+
+```text
+用户评价的是哪个 Hermes assistant turn？这个 turn 使用了哪些 skills？
+```
+
+这个仓库提供的就是这层桥接能力。
 
 ---
 
-## 特性
+## 当前架构
 
-- **核心映射器 (Core Mapper)**：在启动时挂载 Hermes Gateway，在 SQLite 中记录 `discord_message_id -> turn_id` 的映射。它修补了 `DiscordAdapter.send()` 以捕获出站结果，处理拆分/分块回复，并提供用于本地检查和延迟对账的 CLI 工具。
-- **参考 Sidecar 机器人 (Reference Sidecar Bot)**：一个全功能的机器人，支持基于反应的人工评分工作流 (`✅ / ❌ / 👌`)。它强制每个对话轮次只有一个评分，在同级 Discord 消息中镜像反应，并将人工审查记录存储在独立的审计数据库中。
-- **计划中 (Planned)**：导出/报告辅助工具、仪表板，以及按技能、评分和日期范围划分的聚合视图。
+```text
+Hermes Gateway 发送 Discord 回复
+  -> mapper.py patch DiscordAdapter.send()
+  -> data/discord_turn_map.db 存储 discord_message_id -> turn_id
+
+用户在 Hermes 回复上添加 ✅ / ❌ / 👌 reaction
+  -> sidecar Discord bot 收到 on_raw_reaction_add / remove
+  -> hermes_discord_skill_audit 解析 message_id -> turn_id
+  -> 读取 ~/.hermes/state.db 中的 skill_view / skills_list / skill_manage 事件
+  -> 在 skill_audit.db 中写入一条 turn-level review
+  -> 在同一个 turn 的 sibling Discord messages 上同步 reaction 状态
+```
+
+合成的 `turn_id` 格式为：
+
+```text
+<session_id>:<assistant_db_id>
+```
+
+这是有意设计成 turn-level，而不是 message-level。一个 Hermes turn 即使产生三条 Discord 消息，也应该共享同一个评分槽位。
 
 ---
 
-## 架构与流程
+## 功能概览
 
-1. **映射 (Mapping)**：当 Hermes 发送 Discord 回复时，核心映射器捕获出站的 Discord `message_id`，解析会话上下文，并将 `message_id -> turn_id` 映射写入 `discord_turn_map.db`。
-2. **审查 (Reviewing)**：sidecar 审查机器人监听用户对这些回复的反应，使用映射数据库解析确切的 Hermes 对话轮次，从 `~/.hermes/state.db` 重构技能使用情况，并将人工审查结果持久化到审计数据库中。
-3. **分析 (Analytics)**：下游工具之后可以分析审计数据库，以重构技能使用情况并聚合审查结果。
+### Turn mapping layer
 
-通过使用稳定的 `<session_id>:<assistant_db_id>` 标识符作为 `turn_id`，系统确保人工评分发生在 **Hermes 对话轮次级别**，而不是原始消息级别。这防止了对拆分回复的重复评分，以及工具阶段消息与最终消息之间的混淆。
+- 在发送时捕获出站 Discord `message_id`。
+- 支持通过 `raw_response.message_ids` 记录拆分消息的多个 chunk。
+- 将持久映射写入 `data/discord_turn_map.db`。
+- 用 `pending` / `resolved` 表示 Hermes `state.db` 延迟写入场景。
+- 提供 `inspect_map.py` 做本地检查和 pending 对账。
+
+### Reaction audit package
+
+- 可导入 package：`hermes_discord_skill_audit`。
+- 极简参考 bot：`examples/reaction_audit_bot.py`。
+- 支持的评分 reaction：
+  - `✅` -> `good` -> `0`
+  - `❌` -> `not_good` -> `1`
+  - `👌` -> `okay` -> `2`
+- 强制 **每个用户对每个 Hermes turn 只能有一个 active score**。
+- 避免用户在同一个 turn 的多个 split messages 上重复评分。
+- 在同一 turn 的 sibling messages 上镜像 reaction。
+- 允许用户从任意 mirrored chunk/message 上移除评分。
+- 将结构化 review row 持久化到独立的 `skill_audit.db`。
+- 审查 DB 与 turn-map DB 分离，职责清晰。
+
+### Compatibility layer
+
+`hermes_discord_skill_audit.reaction_audit` 保留为兼容 facade，用于兼容早期从单文件参考 bot 中导入 helper 的集成或测试。
 
 ---
 
 ## 仓库结构
 
 ```text
-/path/to/hermes-discord-skill-audit/
-  mapper.py                      # 核心映射逻辑与 DiscordAdapter 修补
-  inspect_map.py                 # 用于检查和对账的本地 CLI
-  data/discord_turn_map.db       # 生成的 SQLite 映射数据库
-  examples/reaction_audit_bot.py # 用于基于反应评分的参考机器人
-  .env.example                   # 参考机器人的环境配置模板
+hermes-discord-skill-audit/
+  mapper.py                         # Hermes Gateway send hook / Discord turn mapper
+  inspect_map.py                    # 查看和回填 mapping rows 的 CLI
+  pyproject.toml                    # package metadata 和测试配置
+  .env.example                      # 参考 bot 的环境变量模板
 
-~/.hermes/hooks/discord-turn-map/
-  HOOK.yaml                      # Gateway 启动挂钩注册
-  handler.py                     # 加载 mapper.py 的挂钩入口点
+  hermes_discord_skill_audit/
+    __init__.py
+    reaction_audit.py               # 兼容 facade / re-exports
+    config.py                       # ReactionAuditConfig 与 env 解析
+    state.py                        # handlers 共享的运行时配置
+    scores.py                       # reaction -> score enum 映射
+    audit_db.py                     # skill_audit.db schema 与 review 持久化
+    turn_map.py                     # message_id -> turn_id 解析与 skill report 构建
+    message_format.py               # 人类可读 report 格式化 helper
+    discord_reactions.py            # on_raw_reaction_add/remove handlers
+
+  examples/
+    reaction_audit_bot.py           # 使用 package 的极简 sidecar Discord bot
+
+  tests/
+    test_mapper.py
+    test_inspect_map.py
+    test_reaction_audit_core.py
+    test_reaction_audit_bot.py
+
+  data/
+    discord_turn_map.db             # 运行时生成的 mapper DB，不是源码
+    skill_audit.db                  # 使用默认路径时生成的 audit DB
+
+  video/
+    example_use_case.gif            # 可选 demo media
+    example_use_case.mp4
 ```
+
+---
+
+## 数据库职责
+
+### Mapping DB：`discord_turn_map.db`
+
+由 Hermes Gateway mapping hook 写入和维护。
+
+主表：
+
+```sql
+CREATE TABLE IF NOT EXISTS discord_message_turn_map (
+  discord_message_id TEXT PRIMARY KEY,
+  session_key TEXT,
+  session_id TEXT,
+  thread_id TEXT,
+  chat_id TEXT,
+  platform TEXT NOT NULL DEFAULT 'discord',
+  turn_id TEXT,
+  assistant_db_id INTEGER,
+  reply_to_message_id TEXT,
+  is_first_chunk INTEGER NOT NULL DEFAULT 0,
+  chunk_index INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  resolution_source TEXT,
+  last_error TEXT,
+  sent_at REAL NOT NULL,
+  resolved_at REAL,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL
+);
+```
+
+关键行为：
+
+- 新发送的消息如果当时还看不到最终 assistant row，可能先进入 `pending`。
+- 后续对账或 reaction-time rescue 可以把它更新成 `resolved`。
+- split chunks、tool/final sibling messages 可以共享同一个 `turn_id`。
+
+### Audit DB：`skill_audit.db`
+
+由 sidecar bot / reaction audit package 写入和维护。
+
+主表：
+
+```sql
+CREATE TABLE IF NOT EXISTS reaction_skill_audits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  discord_message_id TEXT NOT NULL,
+  reacted_by_user_id TEXT NOT NULL,
+  channel_id TEXT,
+  guild_id TEXT,
+  emoji TEXT,
+  user_review_score INTEGER,
+  session_id TEXT,
+  turn_id TEXT,
+  assistant_db_id INTEGER,
+  mapping_status TEXT,
+  resolution_source TEXT,
+  reply_to_message_id TEXT,
+  previous_user_preview TEXT,
+  skill_event_count INTEGER NOT NULL DEFAULT 0,
+  skill_view_count INTEGER NOT NULL DEFAULT 0,
+  skills_list_count INTEGER NOT NULL DEFAULT 0,
+  skill_manage_count INTEGER NOT NULL DEFAULT 0,
+  succeeded_count INTEGER NOT NULL DEFAULT 0,
+  failed_count INTEGER NOT NULL DEFAULT 0,
+  unknown_count INTEGER NOT NULL DEFAULT 0,
+  raw_report_json TEXT NOT NULL,
+  created_at REAL NOT NULL
+);
+```
+
+关键行为：
+
+- review 唯一性由逻辑层按 `(turn_id, reacted_by_user_id)` 控制，而不是按原始 `discord_message_id` 控制。
+- `raw_report_json` 保存完整重构出的 skill report，方便后续分析。
+- package 会做轻量 schema migration，例如给旧 DB 添加 `user_review_score`。
 
 ---
 
 ## 快速开始
 
-### 0) 安装依赖 (使用 uv)
-
-本项目使用 `uv` 进行快速依赖管理。如果你还没安装 `uv`，[请先安装它](https://docs.astral.sh/uv/)。
-然后，设置项目环境：
+### 1) 安装项目依赖
 
 ```bash
+cd /path/to/hermes-discord-skill-audit
 uv sync
 ```
 
-### 1) 创建 Hermes Hook目录
+如果要从另一个生产 bot 项目复用这个 package，可以把它以 editable 模式安装进该 bot 的 venv：
+
+```bash
+/path/to/sidecar-bot/.venv/bin/pip install -e /path/to/hermes-discord-skill-audit
+```
+
+### 2) 安装 Hermes Gateway mapping hook
+
+创建 Hermes hook 目录：
 
 ```bash
 mkdir -p ~/.hermes/hooks/discord-turn-map
 ```
 
-### 2) 创建 `HOOK.yaml`
-
-路径:
-
-```text
-~/.hermes/hooks/discord-turn-map/HOOK.yaml
-```
-
-内容:
+创建 `~/.hermes/hooks/discord-turn-map/HOOK.yaml`：
 
 ```yaml
 name: discord-turn-map
@@ -129,15 +249,7 @@ events:
   - gateway:startup
 ```
 
-### 3) 创建 `handler.py`
-
-路径:
-
-```text
-~/.hermes/hooks/discord-turn-map/handler.py
-```
-
-内容:
+创建 `~/.hermes/hooks/discord-turn-map/handler.py`：
 
 ```python
 from __future__ import annotations
@@ -173,149 +285,158 @@ async def handle(event_type: str, context: dict):
     LOGGER.info("discord-turn-map hook initialized: installed=%s", installed)
 ```
 
-### 4) 重启 Hermes Gateway
+创建或更新 hook 后，需要重启 Hermes Gateway。mapper 只会在 `gateway:startup` 时安装。
 
-挂钩在 `gateway:startup` 时加载，因此在创建或更新挂钩后必须重启网关。
+### 3) 配置 sidecar reaction audit bot
 
-如果不重启 Hermes Gateway，将不会记录任何新的映射。重启后，映射数据库 (`data/discord_turn_map.db`) 将自动创建。
-
-### 5) 运行 Sidecar 机器人
-
-为了实际捕获人类反应并记录分数，启动examples里Discord 机器人（确保机器人获得对话、消息,以及reaction的读写权限）。
-
-确保已将 `.env.example` 复制为 `.env` 并填写了你的 `DISCORD_BOT_TOKEN`，然后启动机器人：
+复制环境变量模板：
 
 ```bash
-uv run examples/reaction_audit_bot.py
+cp .env.example .env
 ```
 
-现在，当你在 Discord 中对 Hermes 回复做出 `✅`, `❌`, 或 `👌` 反应时，机器人将解析映射并将技能得分记录在 `data/skill_audit.db` 中。
+至少设置：
+
+```env
+DISCORD_BOT_TOKEN=your_sidecar_bot_token
+HERMES_AGENT_USER_ID=1492290496222072925
+DISCORD_TURN_MAP_DB_PATH=/path/to/hermes-discord-skill-audit/data/discord_turn_map.db
+HERMES_STATE_DB_PATH=~/.hermes/state.db
+SKILL_AUDIT_DB_PATH=/path/to/sidecar-or-project/data/skill_audit.db
+REACTION_ALLOWED_USER_IDS=
+TURN_MAP_DEFAULT_WINDOW_SECONDS=180
+TURN_MAP_RESCUE_WINDOW_SECONDS=600
+```
+
+sidecar Discord bot 需要具备：
+
+- 读取目标频道/thread 消息的权限
+- 接收 reaction events 的能力
+- 添加/移除 reactions 的权限，用于镜像同步
+- 如果希望使用 `clear_reaction()` 清理行为，最好也具备 Manage Messages 权限
+
+### 4) 运行参考 bot
+
+```bash
+uv run python examples/reaction_audit_bot.py
+```
+
+之后，当允许的用户对 Hermes Agent 回复添加 `✅`、`❌` 或 `👌` 时，bot 会解析 Hermes turn 并在 `skill_audit.db` 中写入一条记录。
 
 ---
 
-## 用法
+## 集成到已有 Discord bot
 
-### 显示最近的记录
+推荐的生产模式是：把面板、命令、cron widgets 等无关功能留在你自己的 bot 项目里，只从本 package 注册审查 handlers：
 
-```bash
-python3 /path/to/hermes-discord-skill-audit/inspect_map.py --limit 20
+```python
+import logging
+from discord.ext import commands
+
+from hermes_discord_skill_audit.config import ReactionAuditConfig
+from hermes_discord_skill_audit.discord_reactions import register_reaction_audit_handlers
+
+logger = logging.getLogger("reaction-audit")
+bot = commands.Bot(command_prefix="!")
+
+config = ReactionAuditConfig.from_env()
+register_reaction_audit_handlers(bot, config=config, logger_=logger)
 ```
 
-### 仅显示等待中（pending）的记录
+这样可以让这个仓库保持为可复用的审查工具，而生产 bot 继续维护自己的 dashboards、panels、commands 和 cron widgets。
+
+---
+
+## 检查与回填 turn map
+
+显示最近 mapping rows：
 
 ```bash
-python3 /path/to/hermes-discord-skill-audit/inspect_map.py --status pending --limit 20
+uv run python inspect_map.py --limit 20
 ```
 
-### 查询特定的 Discord 消息 ID
+显示未解析 rows：
 
 ```bash
-python3 /path/to/hermes-discord-skill-audit/inspect_map.py --message-id 1497000000000000000
+uv run python inspect_map.py --status pending --limit 20
 ```
 
-### 对账延迟的 pending 记录
+检查指定 Discord message：
 
 ```bash
-python3 /path/to/hermes-discord-skill-audit/inspect_map.py \
+uv run python inspect_map.py --message-id 1497000000000000000
+```
+
+回填延迟写入造成的 pending rows：
+
+```bash
+uv run python inspect_map.py \
   --reconcile \
   --window-seconds 180 \
   --lookback-seconds 3600
 ```
 
+reaction-time lookup 也会执行更宽的 rescue pass，由 `TURN_MAP_RESCUE_WINDOW_SECONDS` 控制。
+
 ---
 
-## 映射数据库
+## Reaction UX 规则
 
-由 `mapper.py` 创建的 SQLite 表结构：
+package 围绕 turn-level scoring 设计：
 
-```sql
-CREATE TABLE IF NOT EXISTS discord_message_turn_map (
-  discord_message_id TEXT PRIMARY KEY,
-  session_key TEXT,
-  session_id TEXT,
-  thread_id TEXT,
-  chat_id TEXT,
-  platform TEXT NOT NULL DEFAULT 'discord',
-  turn_id TEXT,
-  assistant_db_id INTEGER,
-  reply_to_message_id TEXT,
-  is_first_chunk INTEGER NOT NULL DEFAULT 0,
-  chunk_index INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'pending',
-  resolution_source TEXT,
-  last_error TEXT,
-  sent_at REAL NOT NULL,
-  resolved_at REAL,
-  created_at REAL NOT NULL,
-  updated_at REAL NOT NULL
-);
+1. 用户在某个 Hermes turn 的任意一条消息上添加 `✅ / ❌ / 👌`。
+2. package 为 `(turn_id, reacted_by_user_id)` 存储一条 review row。
+3. bot 把同一个 emoji 镜像到该 turn 的 sibling Discord messages 上。
+4. 如果用户在镜像 sibling 上点击同一个 emoji，review ownership 会转移到当前点击的消息，之后从这里移除也能自然清理整个 turn。
+5. 如果同一用户尝试对同一 turn 添加不同评分，会尽量自动移除多余 reaction，并发送 warning。
+6. 如果用户从任意 mirrored chunk/message 上移除已存储评分，turn-level review 会被删除，并清理 mirrored reactions。
+
+这样可以避免一个 Hermes answer 被拆成多条 Discord 消息后产生重复评分。
+
+---
+
+## 开发
+
+运行测试：
+
+```bash
+uv run pytest
 ```
 
-### 重要字段
+运行格式化：
 
-- `discord_message_id` — 可见的 Discord 消息 ID
-- `session_id` — Hermes 会话标识符
-- `turn_id` — 解析后的 Hermes 对话轮次标识符
-- `assistant_db_id` — 在 `state.db` 中的助手消息行 ID
-- `reply_to_message_id` — 有助于回退解析
-- `status` — `pending` 或 `resolved`
-- `chunk_index` / `is_first_chunk` — 拆分消息元数据
-- `sent_at` / `resolved_at` — 用于延迟对账的时间数据
+```bash
+uv run black .
+```
+
+package discovery 配置有意只包含 `hermes_discord_skill_audit*`，并从 package 安装中排除 `data`、`video`、`examples`、`tests` 等运行时/示例/测试目录。
 
 ---
 
+## 运维注意事项
 
-## 路线图 (Roadmap)
-
-- **第 1 & 2 阶段：映射与评分基础（已完成）**
-  - 核心映射层 (`discord_message_id -> turn_id`)，支持消息拆分。
-  - Sidecar 机器人集成，用于基于反应的评分，配有独立的审计数据库。
-- **第 3 阶段：基于轮次的用户体验（进行中）**
-  - 实现反应镜像和安全的评分替换。
-  - *下一步:* 改进延迟解析逻辑和部分解析轮次的诊断。
-- **第 4 阶段：报告与分析（计划中）**
-  - 从 `state.db` 重构每个轮次的技能使用情况。
-  - 构建导出辅助工具、仪表板，以及按技能/评分汇总的聚合视图。
-- **第 5 阶段：自动化技能管理（计划中）**
-  - 设计一个技能监控系统，根据本工具收集的人工审查分数自动管理技能。
+- 修改 mapping hook 或 `mapper.py` 后，需要重启 Hermes Gateway。
+- 如果 Gateway 运行期间删除了 mapping DB/table，需要重启 Gateway，让 hook 重新建表并恢复写入。
+- 生产环境建议对 `DISCORD_TURN_MAP_DB_PATH`、`HERMES_STATE_DB_PATH`、`SKILL_AUDIT_DB_PATH` 使用绝对路径。
+- 如果 reaction audit 提示 turn mapping 仍是 pending，可以等待或增大 rescue window；某些 workload 下 `state.db` 延迟写入是正常现象。
+- 不要把 reaction audit rows 混进 turn-map DB；两个数据库职责不同。
+- 参考 bot 是刻意保持极简的。生产 bot 应该 import package，而不是把无关运维代码复制进这个仓库。
 
 ---
 
-## 常见问题 (FAQ)
+## Roadmap
 
-### 这已经是一个评分产品了吗？
+已完成：
 
-还没有。
+- Discord message -> Hermes turn 映射。
+- 可导入的 reaction audit package。
+- reference sidecar bot。
+- turn-level review 唯一性。
+- sibling messages 之间的 reaction mirroring 与安全删除。
+- 针对 delayed pending rows 的 reaction-time rescue。
 
-目前这个仓库是使可靠的人工评分工作流成为可能的 **基础设施层**。
+计划中：
 
-### 这会修改 Hermes 源代码吗？
-
-不会。
-
-该项目使用 Hermes 挂钩并在运行时修补（monkeypatch）`DiscordAdapter.send()`，从而保持集成最小侵入性。
-
-### 为什么不从外部轮询 Discord？
-
-因为外部轮询是不准确的。
-
-捕获可见 Discord `message_id` 最可靠的地方是在发送时，直接从适配器结果中获取。
-
-### 这是否支持一个对话轮次包含多条 Discord 消息？
-
-是的。
-
-这是本项目的核心存在理由之一。拆分的回复和同级消息都可以解析为同一个 Hermes `turn_id`。
-
----
-
-## 运维说明
-
-- `agent:end` 挂钩上下文不直接暴露最终的出站 Discord `message_id`
-- 如果后续发送中缺少 `HERMES_SESSION_KEY`，回退解析可能需要依次使用 `reply_to_message_id`, `thread_id`, 然后是 `chat_id`
-- 如果在 Hermes Gateway 仍在运行时删除了映射数据库/表，请重启网关以让 `_ensure_db()` 重新干净地创建它
-- 在延迟写入的情况下，有效的助手消息行可能会在初始对账窗口之后很久才出现；救援逻辑可能需要一个更宽的窗口，比如 600 秒
-
-
-
-
+- 聚合 review data 的 export helpers。
+- 按 score、时间范围、用户聚合的 skill-level summaries。
+- 面向后续 skill curation workflow 的可选 bridge/exporter。
