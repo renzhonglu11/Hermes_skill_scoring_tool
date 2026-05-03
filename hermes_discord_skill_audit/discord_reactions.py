@@ -28,7 +28,10 @@ def register_reaction_audit_handlers(
     bot_obj.event(on_raw_reaction_add)
     bot_obj.event(on_raw_reaction_remove)
 
-async def sync_turn_reaction(*, channel, origin_message_id: int, turn_id: str, emoji: str, action: str) -> None:
+
+async def sync_turn_reaction(
+    *, channel, origin_message_id: int, turn_id: str, emoji: str, action: str
+) -> None:
     if not turn_id or action not in {"add", "remove"}:
         return
 
@@ -60,7 +63,11 @@ async def sync_turn_reaction(*, channel, origin_message_id: int, turn_id: str, e
                 except discord.HTTPException:
                     pass
         except discord.NotFound:
-            state.logger.warning("Turn reaction sync skipped missing message: turn_id=%s message_id=%s", turn_id, message_id)
+            state.logger.warning(
+                "Turn reaction sync skipped missing message: turn_id=%s message_id=%s",
+                turn_id,
+                message_id,
+            )
         except discord.HTTPException:
             state.logger.exception(
                 "Turn reaction sync failed: action=%s turn_id=%s message_id=%s emoji=%s",
@@ -78,7 +85,11 @@ async def remove_user_reaction(*, message, emoji: str, member) -> bool:
         await message.remove_reaction(emoji, member)
         return True
     except discord.NotFound:
-        state.logger.warning("Extra user reaction already missing: message_id=%s emoji=%s", getattr(message, "id", None), emoji)
+        state.logger.warning(
+            "Extra user reaction already missing: message_id=%s emoji=%s",
+            getattr(message, "id", None),
+            emoji,
+        )
         return False
     except discord.HTTPException:
         state.logger.exception(
@@ -90,7 +101,6 @@ async def remove_user_reaction(*, message, emoji: str, member) -> bool:
         return False
 
 
-
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     if state.bot.user and payload.user_id == state.bot.user.id:
         return
@@ -98,7 +108,10 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     review_score = REACTION_SCORE_MAP.get(reaction_emoji)
     if review_score is None:
         return
-    if state.REACTION_ALLOWED_USER_IDS and payload.user_id not in state.REACTION_ALLOWED_USER_IDS:
+    if (
+        state.REACTION_ALLOWED_USER_IDS
+        and payload.user_id not in state.REACTION_ALLOWED_USER_IDS
+    ):
         return
 
     try:
@@ -138,20 +151,32 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                         pass
                 return
 
-            review_member = payload.member if getattr(payload, "member", None) is not None else None
+            review_member = (
+                payload.member if getattr(payload, "member", None) is not None else None
+            )
             if review_member is None:
                 try:
-                    review_member = await channel.guild.fetch_member(payload.user_id) if getattr(channel, "guild", None) else None
+                    review_member = (
+                        await channel.guild.fetch_member(payload.user_id)
+                        if getattr(channel, "guild", None)
+                        else None
+                    )
                 except Exception:
                     review_member = None
-            removed_extra = await remove_user_reaction(message=message, emoji=reaction_emoji, member=review_member)
+            removed_extra = await remove_user_reaction(
+                message=message, emoji=reaction_emoji, member=review_member
+            )
             await channel.send(
                 (
                     f"⚠️ <@{payload.user_id}> 这个 Hermes 回复轮次已经记录过评分。"
                     f"你当前已对 turn_id=`{turn_id}` 记录了 `{existing_emoji}`"
                     f"（{review_score_to_string(existing_score)}），"
                     f"对应消息是 `{existing_message_id}`。"
-                    + ("已自动移除你刚刚新增的多余 reaction。" if removed_extra else "请手动抹除你刚刚新增的多余 reaction。")
+                    + (
+                        "已自动移除你刚刚新增的多余 reaction。"
+                        if removed_extra
+                        else "请手动抹除你刚刚新增的多余 reaction。"
+                    )
                 ),
                 reference=message,
                 mention_author=False,
@@ -236,7 +261,10 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     review_score = REACTION_SCORE_MAP.get(reaction_emoji)
     if review_score is None:
         return
-    if state.REACTION_ALLOWED_USER_IDS and payload.user_id not in state.REACTION_ALLOWED_USER_IDS:
+    if (
+        state.REACTION_ALLOWED_USER_IDS
+        and payload.user_id not in state.REACTION_ALLOWED_USER_IDS
+    ):
         return
 
     try:
@@ -319,5 +347,3 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
             payload.user_id,
             reaction_emoji,
         )
-
-

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from . import state
 from .scores import REACTION_SCORE_MAP, UserReviewScore
 
+
 def ensure_dirs() -> None:
     state.DATA_DIR.mkdir(parents=True, exist_ok=True)
     state.SKILL_AUDIT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -55,13 +56,21 @@ def ensure_skill_audit_db() -> None:
             """
         )
 
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(reaction_skill_audits)").fetchall()}
+        cols = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(reaction_skill_audits)"
+            ).fetchall()
+        }
         if "user_review_score" not in cols:
-            conn.execute("ALTER TABLE reaction_skill_audits ADD COLUMN user_review_score INTEGER")
+            conn.execute(
+                "ALTER TABLE reaction_skill_audits ADD COLUMN user_review_score INTEGER"
+            )
 
         conn.commit()
     finally:
         conn.close()
+
 
 def persist_skill_audit_report(
     *,
@@ -115,7 +124,11 @@ def persist_skill_audit_report(
                 int(review_score) if review_score is not None else None,
                 str(report.get("session_id") or ""),
                 str(report.get("turn_id") or ""),
-                int(report.get("assistant_db_id") or 0) if report.get("assistant_db_id") is not None else None,
+                (
+                    int(report.get("assistant_db_id") or 0)
+                    if report.get("assistant_db_id") is not None
+                    else None
+                ),
                 str(report.get("mapping_status") or ""),
                 str(report.get("resolution_source") or ""),
                 str(report.get("reply_to_message_id") or ""),
@@ -137,7 +150,9 @@ def persist_skill_audit_report(
         conn.close()
 
 
-def delete_skill_audit_report(*, message_id: int, reacted_by_user_id: int, emoji: str) -> int:
+def delete_skill_audit_report(
+    *, message_id: int, reacted_by_user_id: int, emoji: str
+) -> int:
     ensure_skill_audit_db()
     conn = sqlite3.connect(state.SKILL_AUDIT_DB_PATH)
     try:
@@ -156,7 +171,9 @@ def delete_skill_audit_report(*, message_id: int, reacted_by_user_id: int, emoji
         conn.close()
 
 
-def get_existing_user_review(*, message_id: int, reacted_by_user_id: int) -> dict | None:
+def get_existing_user_review(
+    *, message_id: int, reacted_by_user_id: int
+) -> dict | None:
     ensure_skill_audit_db()
     conn = sqlite3.connect(state.SKILL_AUDIT_DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -178,7 +195,9 @@ def get_existing_user_review(*, message_id: int, reacted_by_user_id: int) -> dic
         conn.close()
 
 
-def get_existing_user_review_by_turn(*, turn_id: str, reacted_by_user_id: int) -> dict | None:
+def get_existing_user_review_by_turn(
+    *, turn_id: str, reacted_by_user_id: int
+) -> dict | None:
     ensure_skill_audit_db()
     conn = sqlite3.connect(state.SKILL_AUDIT_DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -200,7 +219,9 @@ def get_existing_user_review_by_turn(*, turn_id: str, reacted_by_user_id: int) -
         conn.close()
 
 
-def move_existing_user_review_to_message(*, turn_id: str, reacted_by_user_id: int, message_id: int, emoji: str) -> int:
+def move_existing_user_review_to_message(
+    *, turn_id: str, reacted_by_user_id: int, message_id: int, emoji: str
+) -> int:
     ensure_skill_audit_db()
     conn = sqlite3.connect(state.SKILL_AUDIT_DB_PATH)
     try:
@@ -228,7 +249,9 @@ def move_existing_user_review_to_message(*, turn_id: str, reacted_by_user_id: in
         conn.close()
 
 
-def delete_skill_audit_reports_by_turn(*, turn_id: str, reacted_by_user_id: int, emoji: str) -> int:
+def delete_skill_audit_reports_by_turn(
+    *, turn_id: str, reacted_by_user_id: int, emoji: str
+) -> int:
     ensure_skill_audit_db()
     conn = sqlite3.connect(state.SKILL_AUDIT_DB_PATH)
     try:
@@ -248,7 +271,9 @@ def delete_skill_audit_reports_by_turn(*, turn_id: str, reacted_by_user_id: int,
         conn.close()
 
 
-def should_delete_turn_review_on_remove(*, payload_message_id: int, reaction_emoji: str, existing_review: dict | None) -> bool:
+def should_delete_turn_review_on_remove(
+    *, payload_message_id: int, reaction_emoji: str, existing_review: dict | None
+) -> bool:
     if not existing_review:
         return False
     stored_emoji = str(existing_review.get("emoji") or "").strip()

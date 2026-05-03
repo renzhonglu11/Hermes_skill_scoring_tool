@@ -15,7 +15,9 @@ def parse_int_set(raw_value: str) -> set[int]:
         try:
             values.add(int(cleaned))
         except ValueError:
-            logging.getLogger("reaction-audit").warning("Ignoring invalid integer config value: %s", cleaned)
+            logging.getLogger("reaction-audit").warning(
+                "Ignoring invalid integer config value: %s", cleaned
+            )
     return values
 
 
@@ -31,13 +33,36 @@ class ReactionAuditConfig:
     duplicate_warning_language: str = "zh"
 
     @classmethod
-    def from_env(cls, *, default_skill_audit_db_path: str | Path | None = None) -> "ReactionAuditConfig":
+    def from_env(
+        cls, *, default_skill_audit_db_path: str | Path | None = None
+    ) -> "ReactionAuditConfig":
         return cls(
-            hermes_agent_user_id=int(os.getenv("HERMES_AGENT_USER_ID", "1492290496222072925") or 1492290496222072925),
-            turn_map_db_path=Path(os.getenv("DISCORD_TURN_MAP_DB_PATH", "/home/rz/projects/hermes-discord-skill-audit/data/discord_turn_map.db")).expanduser(),
-            hermes_state_db_path=Path(os.getenv("HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db"))).expanduser(),
-            skill_audit_db_path=Path(os.getenv("SKILL_AUDIT_DB_PATH", str(default_skill_audit_db_path or "data/skill_audit.db"))).expanduser(),
+            hermes_agent_user_id=int(
+                os.getenv("HERMES_AGENT_USER_ID", "1492290496222072925")
+                or 1492290496222072925
+            ),
+            turn_map_db_path=Path(
+                os.getenv(
+                    "DISCORD_TURN_MAP_DB_PATH",
+                    "/home/rz/projects/hermes-discord-skill-audit/data/discord_turn_map.db",
+                )
+            ).expanduser(),
+            hermes_state_db_path=Path(
+                os.getenv(
+                    "HERMES_STATE_DB_PATH", str(Path.home() / ".hermes" / "state.db")
+                )
+            ).expanduser(),
+            skill_audit_db_path=Path(
+                os.getenv(
+                    "SKILL_AUDIT_DB_PATH",
+                    str(default_skill_audit_db_path or "data/skill_audit.db"),
+                )
+            ).expanduser(),
             allowed_user_ids=parse_int_set(os.getenv("REACTION_ALLOWED_USER_IDS", "")),
-            default_window_seconds=int(os.getenv("TURN_MAP_DEFAULT_WINDOW_SECONDS", "180") or 180),
-            rescue_window_seconds=int(os.getenv("TURN_MAP_RESCUE_WINDOW_SECONDS", "600") or 600),
+            default_window_seconds=int(
+                os.getenv("TURN_MAP_DEFAULT_WINDOW_SECONDS", "180") or 180
+            ),
+            rescue_window_seconds=int(
+                os.getenv("TURN_MAP_RESCUE_WINDOW_SECONDS", "600") or 600
+            ),
         )

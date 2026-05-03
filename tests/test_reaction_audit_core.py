@@ -33,7 +33,9 @@ def test_core_should_delete_turn_review_for_same_emoji_from_any_message_in_turn(
     )
 
 
-def test_core_move_existing_user_review_to_message_updates_only_matching_turn_user_emoji(tmp_path, monkeypatch):
+def test_core_move_existing_user_review_to_message_updates_only_matching_turn_user_emoji(
+    tmp_path, monkeypatch
+):
     db_path = tmp_path / "skill_audit.db"
     monkeypatch.setattr(state, "SKILL_AUDIT_DB_PATH", db_path)
     monkeypatch.setattr(state, "DATA_DIR", tmp_path)

@@ -281,8 +281,12 @@ async def test_on_raw_reaction_add_processes_valid_reaction(monkeypatch):
         patch.object(state, "bot") as mock_bot,
         patch.object(reactions, "get_skill_report_for_message") as mock_get_report,
         patch.object(reactions, "get_existing_user_review_by_turn", return_value=None),
-        patch.object(reactions, "persist_skill_audit_report", return_value=1) as mock_persist,
-        patch.object(reactions, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+        patch.object(
+            reactions, "persist_skill_audit_report", return_value=1
+        ) as mock_persist,
+        patch.object(
+            reactions, "sync_turn_reaction", new_callable=AsyncMock
+        ) as mock_sync,
     ):
 
         mock_bot.user = bot_user_mock
@@ -338,7 +342,9 @@ async def test_on_raw_reaction_add_handles_existing_review(monkeypatch):
             reactions, "remove_user_reaction", new_callable=AsyncMock, return_value=True
         ) as mock_remove,
         patch.object(reactions, "persist_skill_audit_report") as mock_persist,
-        patch.object(reactions, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+        patch.object(
+            reactions, "sync_turn_reaction", new_callable=AsyncMock
+        ) as mock_sync,
     ):
 
         mock_bot.user = bot_user_mock
@@ -379,7 +385,9 @@ async def test_on_raw_reaction_add_skips_pending_turn_without_error(monkeypatch)
         patch.object(
             reactions,
             "get_skill_report_for_message",
-            side_effect=RuntimeError("message_id=789 已找到映射，但 turn 尚未解析完成（status=pending）"),
+            side_effect=RuntimeError(
+                "message_id=789 已找到映射，但 turn 尚未解析完成（status=pending）"
+            ),
         ),
         patch.object(reactions, "persist_skill_audit_report") as mock_persist,
         patch.object(state.logger, "warning") as mock_warning,
@@ -413,7 +421,9 @@ async def test_on_raw_reaction_remove_skips_pending_turn_without_error(monkeypat
         patch.object(
             reactions,
             "get_skill_report_for_message",
-            side_effect=RuntimeError("message_id=789 已找到映射，但 turn 尚未解析完成（status=pending）"),
+            side_effect=RuntimeError(
+                "message_id=789 已找到映射，但 turn 尚未解析完成（status=pending）"
+            ),
         ),
         patch.object(reactions, "delete_skill_audit_reports_by_turn") as mock_delete,
         patch.object(state.logger, "warning") as mock_warning,
@@ -454,7 +464,9 @@ async def test_on_raw_reaction_remove_processes_valid_reaction(monkeypatch):
         patch.object(
             reactions, "delete_skill_audit_reports_by_turn", return_value=1
         ) as mock_delete,
-        patch.object(reactions, "sync_turn_reaction", new_callable=AsyncMock) as mock_sync,
+        patch.object(
+            reactions, "sync_turn_reaction", new_callable=AsyncMock
+        ) as mock_sync,
     ):
 
         mock_bot.user = bot_user_mock

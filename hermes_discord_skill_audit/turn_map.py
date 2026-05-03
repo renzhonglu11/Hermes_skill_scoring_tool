@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from . import state
 
+
 def get_message_ids_for_turn(turn_id: str) -> list[int]:
     if not state.TURN_MAP_DB_PATH.exists() or not turn_id:
         return []
@@ -23,7 +24,11 @@ def get_message_ids_for_turn(turn_id: str) -> list[int]:
             """,
             (str(turn_id),),
         ).fetchall()
-        return [int(row["discord_message_id"]) for row in rows if str(row["discord_message_id"] or "").strip()]
+        return [
+            int(row["discord_message_id"])
+            for row in rows
+            if str(row["discord_message_id"] or "").strip()
+        ]
     finally:
         conn.close()
 
@@ -120,7 +125,9 @@ def _persist_turn_map_resolution(
         conn.close()
 
 
-def _resolve_turn_map_row(message_id: int, rescue_window_seconds: int | None = None) -> dict | None:
+def _resolve_turn_map_row(
+    message_id: int, rescue_window_seconds: int | None = None
+) -> dict | None:
     row = _fetch_turn_map_row(message_id)
     if not row:
         return None
@@ -133,11 +140,19 @@ def _resolve_turn_map_row(message_id: int, rescue_window_seconds: int | None = N
     if not session_id or sent_at is None:
         return row
 
-    assistant_db_id = _find_assistant_after_sent(session_id, float(sent_at), state.TURN_MAP_DEFAULT_WINDOW_SECONDS)
+    assistant_db_id = _find_assistant_after_sent(
+        session_id, float(sent_at), state.TURN_MAP_DEFAULT_WINDOW_SECONDS
+    )
     resolution_source = "reaction_fallback_timestamp"
 
-    if not assistant_db_id and rescue_window_seconds and rescue_window_seconds > state.TURN_MAP_DEFAULT_WINDOW_SECONDS:
-        assistant_db_id = _find_assistant_after_sent(session_id, float(sent_at), rescue_window_seconds)
+    if (
+        not assistant_db_id
+        and rescue_window_seconds
+        and rescue_window_seconds > state.TURN_MAP_DEFAULT_WINDOW_SECONDS
+    ):
+        assistant_db_id = _find_assistant_after_sent(
+            session_id, float(sent_at), rescue_window_seconds
+        )
         if assistant_db_id:
             resolution_source = f"reaction_rescue_window_{int(rescue_window_seconds)}s"
 
@@ -148,7 +163,9 @@ def _resolve_turn_map_row(message_id: int, rescue_window_seconds: int | None = N
     row["turn_id"] = f"{session_id}:{assistant_db_id}"
     row["status"] = "resolved"
     row["resolution_source"] = resolution_source
-    _persist_turn_map_resolution(message_id, session_id, assistant_db_id, resolution_source)
+    _persist_turn_map_resolution(
+        message_id, session_id, assistant_db_id, resolution_source
+    )
     return row
 
 
@@ -182,7 +199,9 @@ def _skill_target_name(function_name: str, args: dict) -> str:
 
 
 def get_skill_report_for_message(message_id: int) -> dict:
-    map_row = _resolve_turn_map_row(message_id, rescue_window_seconds=state.TURN_MAP_RESCUE_WINDOW_SECONDS)
+    map_row = _resolve_turn_map_row(
+        message_id, rescue_window_seconds=state.TURN_MAP_RESCUE_WINDOW_SECONDS
+    )
     if not map_row:
         raise RuntimeError(f"未找到 message_id={message_id} 的 turn 映射")
 
@@ -274,10 +293,10 @@ def get_skill_report_for_message(message_id: int) -> dict:
         "mapping_status": str(map_row.get("status") or "resolved"),
         "resolution_source": str(map_row.get("resolution_source") or "unknown"),
         "reply_to_message_id": str(map_row.get("reply_to_message_id") or ""),
-        "previous_user_preview": str((user_row["content"] if user_row else "") or "").strip(),
+        "previous_user_preview": str(
+            (user_row["content"] if user_row else "") or ""
+        ).strip(),
         "events": events,
         "status_counts": dict(status_counts),
         "function_counts": dict(function_counts),
     }
-
-
